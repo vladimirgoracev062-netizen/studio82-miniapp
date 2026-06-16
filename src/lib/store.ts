@@ -79,9 +79,64 @@ export async function deleteProductFromDb(productId: string, adminPassword: stri
   return data.products || [];
 }
 
+const MAX_UPLOAD_FILES = 8;
+const MAX_IMAGE_SIDE = 1800;
+const JPEG_QUALITY = 0.86;
+
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Не удалось прочитать фото. Используйте JPG, PNG или WEBP.'));
+    };
+    image.src = url;
+  });
+}
+
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Можно загружать только изображения');
+  }
+
+  const image = await loadImage(file);
+  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(image.width, image.height));
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Не удалось подготовить фото к загрузке');
+
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
+  if (!blob) throw new Error('Не удалось сжать фото');
+
+  const safeName = file.name.replace(/\.[^.]+$/, '') || 'product-photo';
+  return new File([blob], `${safeName}.jpg`, { type: 'image/jpeg' });
+}
+
 export async function uploadImages(files: FileList | File[], adminPassword: string): Promise<string[]> {
+  const inputFiles = Array.from(files).filter((file) => file.size > 0);
+  if (!inputFiles.length) return [];
+  if (inputFiles.length > MAX_UPLOAD_FILES) {
+    throw new Error(`За один раз можно загрузить максимум ${MAX_UPLOAD_FILES} фото`);
+  }
+
+  const preparedFiles = await Promise.all(inputFiles.map(compressImage));
   const formData = new FormData();
-  Array.from(files).forEach((file) => formData.append('files', file));
+  preparedFiles.forEach((file) => formData.append('files', file));
+
   const response = await fetch('/api/upload', {
     method: 'POST',
     headers: { 'x-admin-password': adminPassword },
