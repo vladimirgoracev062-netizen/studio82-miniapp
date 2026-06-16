@@ -21,8 +21,8 @@ export default function ProfilePage() {
   }, []);
 
   return (
-    <main className="app">
-      <div className="page">
+    <main className="app client-app">
+      <div className="page studio-simple-page">
         <Link className="pill" href="/">← Каталог</Link>
         <h1 className="title">Мои заказы</h1>
         <div className="profile-card">

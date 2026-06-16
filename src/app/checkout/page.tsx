@@ -128,8 +128,8 @@ export default function CheckoutPage() {
 
   if (success) {
     return (
-      <main className="app">
-        <div className="page">
+      <main className="app client-app">
+        <div className="page studio-simple-page">
           <Link className="pill" href="/">← Каталог</Link>
           <h1 className="title">Заказ создан</h1>
           <div className="checkout-summary">
@@ -164,7 +164,7 @@ export default function CheckoutPage() {
   }
 
   return (
-    <main className="app">
+    <main className="app client-app">
       <div className="page">
         <Link className="pill" href="/cart">← Корзина</Link>
         <h1 className="title">Оформление</h1>

@@ -66,8 +66,8 @@ export default function CartPage() {
   }
 
   return (
-    <main className="app">
-      <div className="page">
+    <main className="app client-app">
+      <div className="page studio-simple-page">
         <Link className="pill" href="/">← Каталог</Link>
         <h1 className="title">Корзина</h1>
         {lines.length === 0 && <div className="empty">Корзина пустая</div>}

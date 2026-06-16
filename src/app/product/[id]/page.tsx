@@ -9,6 +9,16 @@ function stockFor(product: Product, size: string) {
   return Number(product.sizes.find((item) => item.size === size)?.stock || 0);
 }
 
+function sizesText(product: Product) {
+  const sizes = product.sizes
+    .filter((item) => Number(item.stock) > 0)
+    .map((item) => item.size)
+    .sort((a, b) => Number(a) - Number(b));
+  if (!sizes.length) return 'Нет доступных размеров';
+  if (sizes.length === 1) return `Размер ${sizes[0]}`;
+  return `Размеры ${sizes[0]}–${sizes[sizes.length - 1]}`;
+}
+
 export default function ProductPage({ params }: { params: { id: string } }) {
   const [product, setProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState('');
@@ -23,6 +33,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
     }).catch(() => setProduct(null));
     const tg = (window as any).Telegram?.WebApp;
     tg?.ready?.();
+    tg?.expand?.();
   }, [params.id]);
 
   const availableSizes = useMemo(() => product?.sizes.filter((s) => Number(s.stock) > 0) || [], [product]);
@@ -57,18 +68,22 @@ export default function ProductPage({ params }: { params: { id: string } }) {
     setMessage('Добавлено в корзину');
   }
 
-  if (!product) return <main className="app"><div className="empty">Товар не найден</div></main>;
+  if (!product) return <main className="app client-app"><div className="empty">Товар не найден</div></main>;
 
   return (
-    <main className="app">
-      <div className="page product-page">
-        <Link className="pill" href="/">← Назад</Link>
-        <div className="product-gallery">
-          <div className="square-media product-img">
+    <main className="app client-app product-screen">
+      <header className="client-top product-top">
+        <Link className="cart-chip" href="/">← Каталог</Link>
+        <img className="brand-logo-img small-logo" src="/studio82-logo.png" alt="STUDIO 82" />
+      </header>
+
+      <div className="page product-page studio-product-page">
+        <div className="product-gallery studio-gallery">
+          <div className="square-media product-img studio-product-img">
             <img src={images[activeImage] || safeImage(product)} alt={product.title} />
           </div>
           {images.length > 1 && (
-            <div className="thumbs">
+            <div className="thumbs studio-thumbs">
               {images.map((image, index) => (
                 <button className={`thumb square-media ${activeImage === index ? 'active' : ''}`} key={image + index} onClick={() => setActiveImage(index)}>
                   <img src={image} alt={`${product.title} ${index + 1}`} />
@@ -77,36 +92,43 @@ export default function ProductPage({ params }: { params: { id: string } }) {
             </div>
           )}
         </div>
-        <div className="brand page-brand">{product.brand}</div>
-        <h1 className="title">{product.title}</h1>
-        <div className="muted">{product.color}</div>
-        <h2 className="product-price">{formatPrice(product.price)}</h2>
-        <p className="description">{product.description}</p>
-        <h3>Размер</h3>
-        <div className="sizes">
-          {product.sizes.map((s) => {
-            const disabled = Number(s.stock) <= 0;
-            return (
-              <button
-                key={s.size}
-                className={`size ${disabled ? 'off' : ''} ${selectedSize === s.size ? 'active' : ''}`}
-                disabled={disabled}
-                onClick={() => {
-                  setSelectedSize(s.size);
-                  setAdded(false);
-                  setMessage('');
-                }}
-              >
-                {s.size}
-              </button>
-            );
-          })}
-        </div>
-        {availableSizes.length === 0 && <p className="muted">Сейчас нет доступных размеров</p>}
-        {message && <p className={message.includes('Добавлено') ? 'success-text' : 'error-text'}>{message}</p>}
+
+        <section className="product-info-block">
+          <div className="product-card-brand">{product.brand}</div>
+          <h1 className="title product-title-studio">{product.title}</h1>
+          {product.color && <div className="product-color-studio">{product.color}</div>}
+          <div className="product-price-studio">{formatPrice(product.price)}</div>
+          <div className="product-size-line">{sizesText(product)}</div>
+          {product.description && <p className="description studio-description">{product.description}</p>}
+        </section>
+
+        <section className="size-section">
+          <h3>Размер</h3>
+          <div className="sizes studio-sizes">
+            {product.sizes.map((s) => {
+              const disabled = Number(s.stock) <= 0;
+              return (
+                <button
+                  key={s.size}
+                  className={`size ${disabled ? 'off' : ''} ${selectedSize === s.size ? 'active' : ''}`}
+                  disabled={disabled}
+                  onClick={() => {
+                    setSelectedSize(s.size);
+                    setAdded(false);
+                    setMessage('');
+                  }}
+                >
+                  {s.size}
+                </button>
+              );
+            })}
+          </div>
+          {availableSizes.length === 0 && <p className="muted">Сейчас нет доступных размеров</p>}
+          {message && <p className={message.includes('Добавлено') ? 'success-text' : 'error-text'}>{message}</p>}
+        </section>
       </div>
 
-      <div className="purchase-bar">
+      <div className="purchase-bar studio-purchase-bar">
         <button className="purchase-primary" disabled={!canBuy} onClick={addToCart}>
           {canBuy ? 'Добавить в корзину' : 'Выберите размер'}
         </button>
