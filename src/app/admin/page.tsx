@@ -140,10 +140,13 @@ export default function AdminPage() {
   }
 
   function setSizeDraft(productId: string, patch: Partial<{ size: string; stock: string }>) {
-    setSizeDrafts((current) => ({
-      ...current,
-      [productId]: { size: '', stock: '1', ...(current[productId] || {}), ...patch },
-    }));
+    setSizeDrafts((current) => {
+      const existingDraft = current[productId] || { size: '', stock: '1' };
+      return {
+        ...current,
+        [productId]: { ...existingDraft, ...patch },
+      };
+    });
   }
 
   function addSize(productId: string) {
