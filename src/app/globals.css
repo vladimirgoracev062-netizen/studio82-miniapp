@@ -6,3 +6,6 @@
 
 /* Cart stock and product add-to-cart fix */
 .purchase-bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);width:min(520px,calc(100% - 28px));display:grid;grid-template-columns:1fr;gap:8px;z-index:20}.purchase-primary,.purchase-secondary{border:0;border-radius:22px;padding:17px 20px;font-weight:900;text-align:center}.purchase-primary{background:#111;color:#fff}.purchase-primary:disabled{background:#cfcfcf;color:#777}.purchase-secondary{background:#fff;color:#111;border:1px solid #111}.purchase-bar:has(.purchase-secondary){grid-template-columns:1fr 1fr}.qty-row button:disabled{opacity:.35}.cart-limit{margin:6px 0 0!important;color:#777;font-size:12px;line-height:1.25}@media(max-width:380px){.purchase-bar:has(.purchase-secondary){grid-template-columns:1fr}.purchase-primary,.purchase-secondary{padding:15px 16px}}
+
+/* Quality checkout flow */
+.prepared-message{min-height:190px;resize:vertical;line-height:1.35;white-space:pre-wrap}.direct-actions{margin-top:10px}.direct-actions .btn{width:100%}.direct-box .btn{width:100%}
