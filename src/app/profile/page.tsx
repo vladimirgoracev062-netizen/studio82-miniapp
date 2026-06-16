@@ -46,11 +46,6 @@ export default function ProfilePage() {
           ))}
         </div>
       </div>
-      <nav className="nav nav-three client-nav">
-        <Link href="/">Каталог</Link>
-        <Link href="/cart">Корзина</Link>
-        <Link href="/profile">Заказы</Link>
-      </nav>
     </main>
   );
 }

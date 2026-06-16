@@ -97,11 +97,6 @@ export default function Home() {
         ))}
       </section>
 
-      <nav className="nav nav-three client-nav">
-        <Link href="/">Каталог</Link>
-        <Link href="/cart">Корзина</Link>
-        <Link href="/profile">Заказы</Link>
-      </nav>
     </main>
   );
 }

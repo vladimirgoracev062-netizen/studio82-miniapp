@@ -134,11 +134,6 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         </button>
         {added && <Link className="purchase-secondary" href="/cart">Перейти в корзину</Link>}
       </div>
-      <nav className="nav nav-three client-nav">
-        <Link href="/">Каталог</Link>
-        <Link href="/cart">Корзина</Link>
-        <Link href="/profile">Заказы</Link>
-      </nav>
     </main>
   );
 }

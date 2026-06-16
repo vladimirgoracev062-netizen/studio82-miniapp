@@ -25,3 +25,24 @@ body{background:var(--studio-bg);color:var(--studio-text);font-family:'Helvetica
 .with-bottom-nav .studio-purchase-bar{bottom:86px;z-index:24}
 .with-bottom-nav.client-app{padding-bottom:190px}
 @media(max-width:380px){.with-bottom-nav .purchase-bar:has(.purchase-secondary){grid-template-columns:1fr 1fr}.with-bottom-nav .purchase-primary,.with-bottom-nav .purchase-secondary{padding:14px 12px;font-size:12px}}
+
+/* Global bottom menu v2: visible everywhere except checkout/admin */
+.global-bottom-nav{
+  position:fixed!important;
+  left:50%!important;
+  bottom:calc(16px + env(safe-area-inset-bottom))!important;
+  transform:translateX(-50%)!important;
+  width:min(520px,calc(100% - 28px))!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,1fr)!important;
+  visibility:visible!important;
+  opacity:1!important;
+  pointer-events:auto!important;
+  z-index:9999!important;
+}
+.client-app,.studio-simple-page,.studio-product-page,.product-screen{
+  padding-bottom:calc(118px + env(safe-area-inset-bottom));
+}
+.checkout-page,.admin-app{
+  padding-bottom:24px;
+}

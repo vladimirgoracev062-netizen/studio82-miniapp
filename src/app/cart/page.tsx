@@ -101,11 +101,6 @@ export default function CartPage() {
         )}
       </div>
       {lines.length > 0 && <Link className="cta checkout-cta" href="/checkout">Оформить заказ</Link>}
-      <nav className="nav nav-three client-nav">
-        <Link href="/">Каталог</Link>
-        <Link href="/cart">Корзина</Link>
-        <Link href="/profile">Заказы</Link>
-      </nav>
     </main>
   );
 }
