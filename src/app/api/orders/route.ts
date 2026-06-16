@@ -71,6 +71,7 @@ export async function POST(request: Request) {
         customer_phone: body.phone || '',
         delivery_city: body.city || '',
         delivery_point: body.cdekPoint || '',
+        delivery_type: body.deliveryType || 'cdek_pickup',
         payment_status: 'pending',
         order_status: 'Новый',
         total_amount: total,

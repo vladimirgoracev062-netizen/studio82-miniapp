@@ -38,7 +38,6 @@ export default function ProfilePage() {
               {order.items.map((item) => (
                 <p className="muted" key={item.title + item.size}>{item.title}, размер {item.size} × {item.quantity}</p>
               ))}
-              <p className="muted">{order.deliveryType === 'moscow' ? 'Доставка по Москве' : 'СДЭК до ПВЗ'}</p>
               <b>{formatPrice(order.total)}</b>
               {order.trackNumber && <p>Трек СДЭК: <b>{order.trackNumber}</b></p>}
               {order.trackNumber && <a className="btn light" href={`https://www.cdek.ru/ru/tracking?order_id=${order.trackNumber}`} target="_blank">Отследить</a>}

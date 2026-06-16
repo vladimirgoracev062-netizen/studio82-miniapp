@@ -117,7 +117,6 @@ export async function createOrderInDb(payload: {
   phone: string;
   city: string;
   cdekPoint?: string;
-  deliveryType?: 'cdek_pickup' | 'moscow';
   telegramId?: string;
   telegramUsername?: string;
 }) {
