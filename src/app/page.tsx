@@ -62,7 +62,6 @@ export default function Home() {
       </header>
 
       <section className="catalog-hero">
-        <p className="eyebrow">STUDIO 82 STORE</p>
         <h1>Каталог</h1>
         <p>Оригинальные кроссовки STUDIO 82. Выберите модель, размер и удобный способ получения.</p>
       </section>
