@@ -34,46 +34,62 @@ export default function Home() {
   }, [products, query, brand, onlyAvailable]);
 
   return (
-    <main className="app">
-      <header className="top">
-        <div className="logo"><span>STUDIO</span><span>82</span></div>
-        <Link className="pill" href="/cart">Корзина {cartCount ? `(${cartCount})` : ''}</Link>
+    <main className="app client-app">
+      <header className="client-top">
+        <Link href="/" className="client-logo" aria-label="STUDIO 82">
+          <span>STUDIO</span><b>82</b>
+        </Link>
+        <Link className="cart-pill" href="/cart">Корзина {cartCount ? <b>{cartCount}</b> : null}</Link>
       </header>
 
-      <section className="hero">
-        <h1>В НАЛИЧИИ</h1>
-        <p>Оригинальные кроссовки STUDIO 82. Выберите модель и размер.</p>
+      <section className="client-hero">
+        <div>
+          <p className="eyebrow">STUDIO 82 / AVAILABLE NOW</p>
+          <h1>В НАЛИЧИИ</h1>
+          <p>Выберите модель, размер и оформите заказ в Telegram.</p>
+        </div>
       </section>
 
-      <section className="filters">
+      <section className="client-filters">
         <input className="input search" placeholder="Поиск по модели или бренду" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <div className="chips">
+        <div className="chips brand-scroll">
           {brands.map((item) => (
             <button key={item} className={`chip ${brand === item ? 'active' : ''}`} onClick={() => setBrand(item)}>{item}</button>
           ))}
         </div>
-        <label className="toggle-line">
-          <input type="checkbox" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} />
-          <span>Только доступные размеры</span>
-        </label>
+        <button className={`availability-toggle ${onlyAvailable ? 'active' : ''}`} onClick={() => setOnlyAvailable((value) => !value)}>
+          Только товары с доступными размерами
+        </button>
       </section>
 
-      <section className="grid">
+      <section className="catalog-head">
+        <h2>Каталог</h2>
+        <span>{filtered.length} моделей</span>
+      </section>
+
+      <section className="grid product-grid">
         {filtered.length === 0 && <div className="empty wide">Ничего не найдено</div>}
-        {filtered.map((product) => (
-          <Link href={`/product/${product.id}`} className="card" key={product.id}>
-            <div className="square-media shoe"><img src={safeImage(product)} alt={product.title} /></div>
-            <div className="brand">{product.brand}</div>
-            <div className="name">{product.title}</div>
-            <div className="card-meta">
-              <div className="price">{formatPrice(product.price)}</div>
-              {!productAvailable(product) && <span className="soldout">Нет размеров</span>}
-            </div>
-          </Link>
-        ))}
+        {filtered.map((product) => {
+          const availableSizes = product.sizes.filter((size) => Number(size.stock) > 0).map((size) => size.size).slice(0, 4);
+          return (
+            <Link href={`/product/${product.id}`} className="card product-card" key={product.id}>
+              <div className="square-media shoe product-cover"><img src={safeImage(product)} alt={product.title} /></div>
+              <div className="brand">{product.brand}</div>
+              <div className="name">{product.title}</div>
+              <div className="product-color">{product.color}</div>
+              <div className="mini-sizes">
+                {availableSizes.length ? availableSizes.map((size) => <span key={size}>{size}</span>) : <span className="muted-chip">нет размеров</span>}
+              </div>
+              <div className="card-meta">
+                <div className="price">{formatPrice(product.price)}</div>
+                {!productAvailable(product) ? <span className="soldout">Нет размеров</span> : <span className="select-label">Выбрать</span>}
+              </div>
+            </Link>
+          );
+        })}
       </section>
 
-      <nav className="nav nav-three">
+      <nav className="nav nav-three client-nav">
         <Link href="/">Каталог</Link>
         <Link href="/cart">Корзина</Link>
         <Link href="/profile">Заказы</Link>

@@ -17,6 +17,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
     }).catch(() => setProduct(null));
     const tg = (window as any).Telegram?.WebApp;
     tg?.ready?.();
+    tg?.expand?.();
   }, [params.id]);
 
   const availableSizes = useMemo(() => product?.sizes.filter((s) => Number(s.stock) > 0) || [], [product]);
@@ -39,18 +40,22 @@ export default function ProductPage({ params }: { params: { id: string } }) {
     window.location.href = '/cart';
   }
 
-  if (!product) return <main className="app"><div className="empty">Товар не найден</div></main>;
+  if (!product) return <main className="app client-app"><div className="empty">Товар не найден</div></main>;
 
   return (
-    <main className="app">
-      <div className="page product-page">
-        <Link className="pill" href="/">← Назад</Link>
-        <div className="product-gallery">
-          <div className="square-media product-img">
+    <main className="app client-app">
+      <div className="product-topbar">
+        <Link className="back-link" href="/">← Каталог</Link>
+        <Link className="cart-pill small" href="/cart">Корзина</Link>
+      </div>
+
+      <div className="page product-page client-product-page">
+        <div className="product-gallery premium-gallery">
+          <div className="square-media product-img premium-product-img">
             <img src={images[activeImage] || safeImage(product)} alt={product.title} />
           </div>
           {images.length > 1 && (
-            <div className="thumbs">
+            <div className="thumbs premium-thumbs">
               {images.map((image, index) => (
                 <button className={`thumb square-media ${activeImage === index ? 'active' : ''}`} key={image + index} onClick={() => setActiveImage(index)}>
                   <img src={image} alt={`${product.title} ${index + 1}`} />
@@ -59,32 +64,46 @@ export default function ProductPage({ params }: { params: { id: string } }) {
             </div>
           )}
         </div>
-        <div className="brand page-brand">{product.brand}</div>
-        <h1 className="title">{product.title}</h1>
-        <div className="muted">{product.color}</div>
-        <h2 className="product-price">{formatPrice(product.price)}</h2>
-        <p className="description">{product.description}</p>
-        <h3>Размер</h3>
-        <div className="sizes">
-          {product.sizes.map((s) => {
-            const disabled = Number(s.stock) <= 0;
-            return (
-              <button
-                key={s.size}
-                className={`size ${disabled ? 'off' : ''} ${selectedSize === s.size ? 'active' : ''}`}
-                disabled={disabled}
-                onClick={() => setSelectedSize(s.size)}
-              >
-                {s.size}
-              </button>
-            );
-          })}
+
+        <div className="product-info-card">
+          <div className="brand page-brand">{product.brand}</div>
+          <h1 className="title">{product.title}</h1>
+          {product.color && <div className="muted product-color-line">{product.color}</div>}
+          <h2 className="product-price">{formatPrice(product.price)}</h2>
+          {product.description && <p className="description">{product.description}</p>}
+
+          <div className="size-head">
+            <h3>Размер</h3>
+            <span>Доступные размеры активны</span>
+          </div>
+          <div className="sizes premium-sizes">
+            {product.sizes.map((s) => {
+              const disabled = Number(s.stock) <= 0;
+              return (
+                <button
+                  key={s.size}
+                  className={`size ${disabled ? 'off' : ''} ${selectedSize === s.size ? 'active' : ''}`}
+                  disabled={disabled}
+                  onClick={() => setSelectedSize(s.size)}
+                >
+                  {s.size}
+                </button>
+              );
+            })}
+          </div>
+          {availableSizes.length === 0 && <p className="muted">Сейчас нет доступных размеров</p>}
         </div>
-        {availableSizes.length === 0 && <p className="muted">Сейчас нет доступных размеров</p>}
       </div>
-      <button className="cta" disabled={!canBuy} onClick={addToCart}>
-        {canBuy ? 'Добавить в корзину' : 'Выберите размер'}
-      </button>
+
+      <div className="buy-bar">
+        <div>
+          <span>Итого</span>
+          <b>{formatPrice(product.price)}</b>
+        </div>
+        <button className="cta in-bar" disabled={!canBuy} onClick={addToCart}>
+          {canBuy ? `В корзину / ${selectedSize}` : 'Выберите размер'}
+        </button>
+      </div>
     </main>
   );
 }
