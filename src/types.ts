@@ -41,6 +41,7 @@ export type Order = {
   phone: string;
   city: string;
   cdekPoint?: string;
+  deliveryType?: 'cdek_pickup' | 'moscow' | string;
   total: number;
   status: OrderStatus;
   paymentStatus?: string;
