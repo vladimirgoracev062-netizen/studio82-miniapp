@@ -150,13 +150,21 @@ export async function uploadImages(files: FileList | File[], adminPassword: stri
   return data.urls || [];
 }
 
-export async function fetchOrders(adminPassword?: string, telegramId?: string): Promise<Order[]> {
+export function getTelegramInitData() {
+  if (typeof window === 'undefined') return '';
+  return (window as any).Telegram?.WebApp?.initData || '';
+}
+
+export async function fetchOrders(adminPassword?: string): Promise<Order[]> {
   const params = new URLSearchParams();
   if (adminPassword) params.set('admin', '1');
-  if (telegramId) params.set('telegram_id', telegramId);
+  const initData = getTelegramInitData();
   const response = await fetch(`/api/orders?${params.toString()}`, {
     cache: 'no-store',
-    headers: adminPassword ? { 'x-admin-password': adminPassword } : undefined,
+    headers: {
+      ...(adminPassword ? { 'x-admin-password': adminPassword } : {}),
+      ...(!adminPassword && initData ? { 'x-telegram-init-data': initData } : {}),
+    },
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
@@ -176,10 +184,14 @@ export async function createOrderInDb(payload: {
   telegramId?: string;
   telegramUsername?: string;
 }) {
+  const initData = getTelegramInitData();
   const response = await fetch('/api/orders', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json',
+      ...(initData ? { 'x-telegram-init-data': initData } : {}),
+    },
+    body: JSON.stringify({ ...payload, telegramInitData: initData }),
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
@@ -241,4 +253,48 @@ export function productAvailable(product: Product) {
 export function getTelegramUser() {
   if (typeof window === 'undefined') return null;
   return (window as any).Telegram?.WebApp?.initDataUnsafe?.user || null;
+}
+
+export async function fetchCustomerProfile() {
+  const initData = getTelegramInitData();
+  if (!initData) return null;
+  const response = await fetch('/api/customer-profile', {
+    cache: 'no-store',
+    headers: { 'x-telegram-init-data': initData },
+  });
+  if (!response.ok) return null;
+  const data = await response.json().catch(() => ({}));
+  return data.profile || null;
+}
+
+export async function requestTelegramContact(): Promise<{ ok: boolean; status?: string; message?: string }> {
+  if (typeof window === 'undefined') return { ok: false, message: 'Telegram недоступен' };
+  const tg = (window as any).Telegram?.WebApp;
+  if (!tg?.requestContact) {
+    return { ok: false, message: 'Ваш Telegram не поддерживает быструю передачу номера. Введите телефон вручную.' };
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result: { ok: boolean; status?: string; message?: string }) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
+    const handler = (event: any) => {
+      tg.offEvent?.('contactRequested', handler);
+      finish({ ok: event?.status === 'sent', status: event?.status });
+    };
+
+    tg.onEvent?.('contactRequested', handler);
+    try {
+      tg.requestContact((accepted: boolean) => {
+        finish({ ok: Boolean(accepted), status: accepted ? 'sent' : 'cancelled' });
+      });
+    } catch {
+      tg.offEvent?.('contactRequested', handler);
+      finish({ ok: false, message: 'Не удалось запросить номер. Введите телефон вручную.' });
+    }
+  });
 }

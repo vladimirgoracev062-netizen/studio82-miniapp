@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { createOrderInDb, fetchProducts, formatPrice, getCart, getTelegramUser, saveCart } from '@/lib/store';
+import { createOrderInDb, fetchCustomerProfile, fetchProducts, formatPrice, getCart, getTelegramUser, requestTelegramContact, saveCart } from '@/lib/store';
 import type { Order, Product } from '@/types';
 
 type DeliveryType = 'cdek_pickup' | 'moscow';
@@ -64,11 +64,30 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState(getCart());
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactMessage, setContactMessage] = useState('');
   const [success, setSuccess] = useState<{ order: Order; directMessage: string; copied: boolean } | null>(null);
 
   useEffect(() => {
     setCart(getCart());
     fetchProducts().then(setProducts).catch(() => setProducts([]));
+
+    const user = getTelegramUser();
+    if (user?.first_name) {
+      setForm((current) => ({
+        ...current,
+        customerName: current.customerName || [user.first_name, user.last_name].filter(Boolean).join(' '),
+      }));
+    }
+
+    fetchCustomerProfile().then((profile) => {
+      if (!profile) return;
+      setForm((current) => ({
+        ...current,
+        customerName: current.customerName || [profile.firstName, profile.lastName].filter(Boolean).join(' '),
+        phone: current.phone || profile.phone || '',
+      }));
+    }).catch(() => null);
   }, []);
 
   const items = useMemo(() => cart.map((item) => {
@@ -82,6 +101,40 @@ export default function CheckoutPage() {
     setError('');
     if (type === 'moscow') {
       setForm((current) => ({ ...current, city: 'Москва', cdekPoint: 'Доставка по Москве — согласовать в Telegram' }));
+    }
+  }
+
+
+  async function requestPhoneFromTelegram() {
+    try {
+      setContactMessage('');
+      setContactLoading(true);
+      const result = await requestTelegramContact();
+      if (!result.ok) {
+        setContactMessage(result.message || 'Вы не поделились номером. Его можно ввести вручную.');
+        return;
+      }
+
+      setContactMessage('Номер получен. Обновляем данные...');
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        const profile = await fetchCustomerProfile();
+        if (profile?.phone) {
+          setForm((current) => ({
+            ...current,
+            customerName: current.customerName || [profile.firstName, profile.lastName].filter(Boolean).join(' '),
+            phone: profile.phone,
+          }));
+          setContactMessage('Номер телефона добавлен из Telegram.');
+          return;
+        }
+      }
+
+      setContactMessage('Telegram подтвердил отправку номера, но он ещё не дошёл до сайта. Обновите страницу или введите телефон вручную.');
+    } catch {
+      setContactMessage('Не удалось получить номер. Введите телефон вручную.');
+    } finally {
+      setContactLoading(false);
     }
   }
 
@@ -194,7 +247,13 @@ export default function CheckoutPage() {
 
         <div className="form">
           <input className="input" placeholder="ФИО" value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} />
-          <input className="input" placeholder="Телефон" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <div className="phone-field">
+            <input className="input" placeholder="Телефон" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <button className="btn light phone-request-btn" disabled={contactLoading} onClick={requestPhoneFromTelegram} type="button">
+              {contactLoading ? 'Запрашиваем...' : 'Получить номер из Telegram'}
+            </button>
+          </div>
+          {contactMessage && <p className="muted">{contactMessage}</p>}
           {deliveryType === 'cdek_pickup' && (
             <>
               <input className="input" placeholder="Город" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />

@@ -1,46 +1,73 @@
-# STUDIO 82 Telegram Mini App
+# STUDIO 82 Mini App — customer identity fix
 
-Next.js версия магазина STUDIO 82.
+Что добавлено:
 
-## Что есть
+- клиент видит только свои заказы по Telegram ID;
+- сервер проверяет Telegram `initData`, а не доверяет ID из браузера;
+- если Mini App открыт не внутри Telegram, раздел заказов больше не отдаёт все заказы;
+- оформление заказа требует запуск через Telegram;
+- добавлен запрос номера телефона через Telegram WebApp `requestContact`;
+- добавлен webhook для сохранения номера телефона в Supabase;
+- поле телефона в оформлении заказа автоматически заполняется, если пользователь поделился номером.
 
-- Каталог товаров
-- Карточки товара
-- Размеры: доступные активные, недоступные серые
-- Корзина
-- Оформление заказа
-- Личный кабинет / заказы
-- Админка `/admin`
-- Добавление и редактирование товаров
-- Загрузка фото в Supabase Storage
-- Хранение товаров, остатков и заказов в Supabase
+## SQL для Supabase
 
-## Переменные Vercel
+Выполнить в SQL Editor перед/после деплоя:
 
-```env
-NEXT_PUBLIC_ADMIN_PASSWORD=admin82
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+```sql
+create table if not exists customer_profiles (
+  telegram_id text primary key,
+  telegram_username text,
+  first_name text,
+  last_name text,
+  phone text,
+  updated_at timestamptz not null default now()
+);
+
+alter table customer_profiles enable row level security;
+
+drop policy if exists "Public can read customer profiles" on customer_profiles;
+drop policy if exists "Public can insert customer profiles" on customer_profiles;
+drop policy if exists "Public can update customer profiles" on customer_profiles;
+
+-- Публичный доступ к профилям запрещён. Сервер работает через service_role.
+create policy "No public customer profile access"
+on customer_profiles for all
+using (false)
+with check (false);
+
+-- Закрываем прямое чтение заказов через публичный anon key.
+drop policy if exists "Public can read own orders later" on orders;
+drop policy if exists "Public can read order items later" on order_items;
+
+create policy "No public orders access"
+on orders for select
+using (false);
+
+create policy "No public order items access"
+on order_items for select
+using (false);
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` нельзя публиковать в открытом доступе.
+## Webhook Telegram для контактов
 
+После деплоя выполнить в браузере, подставив токен своего бота:
 
-## Telegram notifications
-
-Для уведомлений о новых заказах добавьте в Vercel переменные:
-
-```env
-TELEGRAM_BOT_TOKEN=bot_token_from_BotFather
-TELEGRAM_ADMIN_CHAT_ID=your_numeric_chat_id_or_group_chat_id
+```text
+https://api.telegram.org/botТВОЙ_ТОКЕН/setWebhook?url=https://studio82-miniapp.vercel.app/api/telegram-webhook
 ```
 
-После изменения переменных сделайте Redeploy без build cache.
+Потом можно проверить:
 
-## Telegram notification debug
-After deploy, open this URL to test Vercel-side Telegram notifications:
+```text
+https://api.telegram.org/botТВОЙ_ТОКЕН/getWebhookInfo
+```
 
-`https://studio82-miniapp.vercel.app/api/telegram-test?password=admin82`
+## Проверка
 
-If it returns `{"ok":true}`, Vercel can send Telegram messages.
+1. Открыть Mini App с Telegram-аккаунта №1.
+2. Оформить заказ.
+3. Открыть раздел «Заказы» — виден только заказ аккаунта №1.
+4. Открыть Mini App с Telegram-аккаунта №2.
+5. Раздел «Заказы» не должен показывать заказы аккаунта №1.
+6. На оформлении нажать «Получить номер из Telegram» — после согласия телефон должен подтянуться в поле телефона.

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { fetchOrders, formatPrice, getTelegramUser } from '@/lib/store';
+import { fetchOrders, formatPrice, getTelegramInitData, getTelegramUser } from '@/lib/store';
 import type { Order } from '@/types';
 
 export default function ProfilePage() {
@@ -13,7 +13,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const telegramUser = getTelegramUser();
     setUser(telegramUser);
-    fetchOrders(undefined, telegramUser?.id ? String(telegramUser.id) : undefined)
+    fetchOrders()
       .then(setOrders)
       .catch((err) => setError(err.message || 'Не удалось загрузить заказы'));
     const tg = (window as any).Telegram?.WebApp;
@@ -29,6 +29,7 @@ export default function ProfilePage() {
           <b>{user?.first_name || 'Покупатель STUDIO 82'}</b>
           {user?.username && <p className="muted">@{user.username}</p>}
         </div>
+        {!getTelegramInitData() && <p className="error-text">Откройте магазин внутри Telegram, чтобы видеть свои заказы.</p>}
         {error && <p className="error-text">{error}</p>}
         {orders.length === 0 && !error && <div className="empty">Заказов пока нет</div>}
         <div className="order-list">

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin, hasSupabase, isAdminRequest, orderFromRow } from '@/lib/supabase-server';
-import { seedProducts } from '@/data/products';
 import type { CartItem } from '@/types';
+import { getTelegramInitDataFromRequest, verifyTelegramInitData } from '@/lib/telegram-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,8 +92,12 @@ export async function GET(request: Request) {
     if (!hasSupabase()) return NextResponse.json({ orders: [] });
     const url = new URL(request.url);
     const admin = url.searchParams.get('admin') === '1';
-    const telegramId = url.searchParams.get('telegram_id');
     if (admin && !isAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const telegramUser = admin ? null : verifyTelegramInitData(getTelegramInitDataFromRequest(request));
+    if (!admin && !telegramUser?.id) {
+      return NextResponse.json({ orders: [] });
+    }
 
     const supabase = getSupabaseAdmin();
     let query = supabase
@@ -101,7 +105,7 @@ export async function GET(request: Request) {
       .select('*, order_items(*)')
       .order('created_at', { ascending: false });
 
-    if (!admin && telegramId) query = query.eq('telegram_id', telegramId);
+    if (!admin && telegramUser?.id) query = query.eq('telegram_id', telegramUser.id);
 
     const { data, error } = await query;
     if (error) throw error;
@@ -117,6 +121,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const cart = (body.cart || []) as CartItem[];
     const supabase = getSupabaseAdmin();
+    const telegramUser = verifyTelegramInitData(getTelegramInitDataFromRequest(request) || body.telegramInitData || '');
+
+    if (!telegramUser?.id) {
+      return NextResponse.json({ error: 'Откройте приложение через Telegram, чтобы оформить заказ' }, { status: 401 });
+    }
 
     if (!cart.length) return NextResponse.json({ error: 'Корзина пустая' }, { status: 400 });
 
@@ -147,8 +156,8 @@ export async function POST(request: Request) {
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        telegram_id: body.telegramId || '',
-        telegram_username: body.telegramUsername || '',
+        telegram_id: telegramUser.id,
+        telegram_username: telegramUser.username || body.telegramUsername || '',
         customer_name: body.customerName || '',
         customer_phone: body.phone || '',
         delivery_city: body.city || '',
