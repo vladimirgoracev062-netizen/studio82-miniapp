@@ -25,3 +25,15 @@ SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` нельзя публиковать в открытом доступе.
+
+
+## Telegram notifications
+
+Для уведомлений о новых заказах добавьте в Vercel переменные:
+
+```env
+TELEGRAM_BOT_TOKEN=bot_token_from_BotFather
+TELEGRAM_ADMIN_CHAT_ID=your_numeric_chat_id_or_group_chat_id
+```
+
+После изменения переменных сделайте Redeploy без build cache.

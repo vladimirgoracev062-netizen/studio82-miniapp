@@ -5,6 +5,64 @@ import type { CartItem } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID;
+
+function formatRub(value: number) {
+  return new Intl.NumberFormat('ru-RU').format(value || 0) + ' ₽';
+}
+
+function deliveryLabel(value?: string) {
+  if (value === 'moscow') return 'Доставка по Москве';
+  return 'СДЭК / ПВЗ';
+}
+
+function buildAdminOrderText(order: ReturnType<typeof orderFromRow>, adminUrl: string) {
+  const items = order.items
+    .map((item) => `• ${item.title}\n  Размер: ${item.size}\n  Количество: ${item.quantity}\n  Цена: ${formatRub(item.price)}`)
+    .join('\n\n');
+
+  return [
+    '🆕 Новый заказ STUDIO 82',
+    '',
+    `Заказ №${order.id}`,
+    `Сумма: ${formatRub(order.total)}`,
+    '',
+    'Клиент:',
+    order.customerName ? `Имя: ${order.customerName}` : '',
+    order.phone ? `Телефон: ${order.phone}` : '',
+    order.telegramUsername ? `Telegram: @${order.telegramUsername}` : '',
+    '',
+    'Доставка:',
+    deliveryLabel(order.deliveryType),
+    order.city ? `Город: ${order.city}` : '',
+    order.cdekPoint ? `ПВЗ/адрес: ${order.cdekPoint}` : '',
+    '',
+    'Товары:',
+    items,
+    '',
+    `Админка: ${adminUrl}/admin`,
+  ].filter(Boolean).join('\n');
+}
+
+async function notifyAdminAboutOrder(order: ReturnType<typeof orderFromRow>, origin: string) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_ADMIN_CHAT_ID) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_ADMIN_CHAT_ID,
+        text: buildAdminOrderText(order, origin),
+        disable_web_page_preview: true,
+      }),
+    });
+  } catch (error) {
+    console.error('Failed to send Telegram order notification', error);
+  }
+}
+
+
 export async function GET(request: Request) {
   try {
     if (!hasSupabase()) return NextResponse.json({ orders: [] });
@@ -97,7 +155,9 @@ export async function POST(request: Request) {
     }
 
     const { data: fullOrder } = await supabase.from('orders').select('*, order_items(*)').eq('id', order.id).single();
-    return NextResponse.json({ order: fullOrder ? orderFromRow(fullOrder) : order });
+    const normalizedOrder = fullOrder ? orderFromRow(fullOrder) : orderFromRow({ ...order, order_items: orderItems });
+    await notifyAdminAboutOrder(normalizedOrder, new URL(request.url).origin);
+    return NextResponse.json({ order: normalizedOrder });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to create order' }, { status: 500 });
   }
