@@ -16,3 +16,12 @@ body{background:var(--studio-bg);color:var(--studio-text);font-family:'Helvetica
 
 /* Customer identity and phone request */
 .phone-field{display:grid;grid-template-columns:1fr;gap:8px}.phone-request-btn{width:100%;font-size:13px}.profile-card .muted{margin:6px 0 0}.profile-identity-note{font-size:13px;color:#666;margin-top:8px;line-height:1.35}
+
+
+/* Bottom navigation visible on all client pages except checkout */
+.cart-page .studio-simple-page{padding-bottom:190px}
+.cart-page .checkout-cta{bottom:86px;z-index:24}
+.with-bottom-nav .studio-product-page{padding-bottom:220px}
+.with-bottom-nav .studio-purchase-bar{bottom:86px;z-index:24}
+.with-bottom-nav.client-app{padding-bottom:190px}
+@media(max-width:380px){.with-bottom-nav .purchase-bar:has(.purchase-secondary){grid-template-columns:1fr 1fr}.with-bottom-nav .purchase-primary,.with-bottom-nav .purchase-secondary{padding:14px 12px;font-size:12px}}

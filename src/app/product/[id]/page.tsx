@@ -71,7 +71,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   if (!product) return <main className="app client-app"><div className="empty">Товар не найден</div></main>;
 
   return (
-    <main className="app client-app product-screen">
+    <main className="app client-app product-screen with-bottom-nav">
       <header className="client-top product-top">
         <Link className="cart-chip" href="/">← Каталог</Link>
         <img className="brand-logo-img small-logo" src="/studio82-logo.png" alt="STUDIO 82" />
@@ -134,6 +134,11 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         </button>
         {added && <Link className="purchase-secondary" href="/cart">Перейти в корзину</Link>}
       </div>
+      <nav className="nav nav-three client-nav">
+        <Link href="/">Каталог</Link>
+        <Link href="/cart">Корзина</Link>
+        <Link href="/profile">Заказы</Link>
+      </nav>
     </main>
   );
 }

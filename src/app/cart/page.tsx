@@ -66,7 +66,7 @@ export default function CartPage() {
   }
 
   return (
-    <main className="app client-app">
+    <main className="app client-app cart-page">
       <div className="page studio-simple-page">
         <Link className="pill" href="/">← Каталог</Link>
         <h1 className="title">Корзина</h1>
@@ -100,7 +100,12 @@ export default function CartPage() {
           </div>
         )}
       </div>
-      {lines.length > 0 && <Link className="cta" href="/checkout">Оформить заказ</Link>}
+      {lines.length > 0 && <Link className="cta checkout-cta" href="/checkout">Оформить заказ</Link>}
+      <nav className="nav nav-three client-nav">
+        <Link href="/">Каталог</Link>
+        <Link href="/cart">Корзина</Link>
+        <Link href="/profile">Заказы</Link>
+      </nav>
     </main>
   );
 }
