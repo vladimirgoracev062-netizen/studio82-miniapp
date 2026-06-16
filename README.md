@@ -1,57 +1,25 @@
-'use client';
+# STUDIO 82 Telegram Mini App
 
-import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { formatPrice, getCart, getProducts, saveCart } from '@/lib/store';
-import type { CartItem, Product } from '@/types';
+Первая рабочая Next.js-версия магазина STUDIO 82.
 
-export default function CartPage() {
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+## Что внутри
+- каталог товаров из таблицы
+- карточка товара
+- активные/серые размеры по остаткам
+- корзина
+- оформление заказа
+- личный кабинет «Мои заказы»
+- админка для одного админа
+- заготовка под ЮKassa и СДЭК
 
-  useEffect(() => {
-    setCart(getCart());
-    setProducts(getProducts());
-  }, []);
+## Деплой на Vercel
+1. Загрузить файлы в GitHub.
+2. Vercel → New Project → Import.
+3. Framework должен определиться как Next.js.
+4. Deploy.
 
-  const lines = cart.map((item) => {
-    const product = products.find((p) => p.id === item.productId);
-    return { item, product };
-  }).filter((line) => line.product);
+## Админка
+Адрес: `/admin`
+Тестовый пароль: `admin82`
 
-  const total = lines.reduce((sum, line) => sum + (line.product?.price || 0) * line.item.quantity, 0);
-
-  function remove(index: number) {
-    const next = cart.filter((_, i) => i !== index);
-    setCart(next);
-    saveCart(next);
-  }
-
-  return (
-    <main className="app">
-      <div className="page">
-        <Link className="pill" href="/">← Каталог</Link>
-        <h1 className="title">Корзина</h1>
-        {lines.length === 0 && <div className="empty">Корзина пустая</div>}
-        <div className="admin-table">
-          {lines.map((line, index) => (
-            <div className="admin-row" key={`${line.item.productId}-${line.item.size}`}>
-              <b>{line.product?.title}</b>
-              <p className="muted">Размер: {line.item.size}</p>
-              <div className="row">
-                <span>{formatPrice(line.product?.price || 0)}</span>
-                <button className="btn light" onClick={() => remove(index)}>Удалить</button>
-              </div>
-            </div>
-          ))}
-        </div>
-        {lines.length > 0 && (
-          <>
-            <h2>Итого: {formatPrice(total)}</h2>
-            <Link className="cta" href="/checkout">Оформить заказ</Link>
-          </>
-        )}
-      </div>
-    </main>
-  );
-}
+Важно: это MVP. В следующем этапе подключаем настоящую базу данных, серверную авторизацию, ЮKassa и СДЭК API.
