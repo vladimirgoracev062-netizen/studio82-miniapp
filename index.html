@@ -1,0 +1,189 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { Plus, Trash2, Pencil, Save, ShoppingBag, ArrowLeft, Upload, Eye, EyeOff } from 'lucide-react';
+import { seedProducts } from './seedProducts';
+import './style.css';
+
+const STORAGE_KEY = 'studio82_products_v1';
+const CART_KEY = 'studio82_cart_v1';
+
+function money(value) {
+  if (!value) return 'Цена в Direct';
+  const n = Number(String(value).replace(/[^0-9]/g, ''));
+  if (!n) return value;
+  return new Intl.NumberFormat('ru-RU').format(n) + ' ₽';
+}
+
+function loadProducts() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || seedProducts; }
+  catch { return seedProducts; }
+}
+function saveProducts(products) { localStorage.setItem(STORAGE_KEY, JSON.stringify(products)); }
+function loadCart() {
+  try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; }
+  catch { return []; }
+}
+function saveCart(cart) { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
+
+function useProducts() {
+  const [products, setProducts] = useState(loadProducts);
+  const update = (next) => { setProducts(next); saveProducts(next); };
+  return [products, update];
+}
+
+function App() {
+  const [products, setProducts] = useProducts();
+  const [cart, setCart] = useState(loadCart);
+  const [selected, setSelected] = useState(null);
+  const [admin, setAdmin] = useState(location.pathname.includes('admin'));
+
+  useEffect(() => {
+    window.Telegram?.WebApp?.ready?.();
+    window.Telegram?.WebApp?.expand?.();
+  }, []);
+
+  const pushCart = (item) => {
+    const next = [...cart, item];
+    setCart(next); saveCart(next);
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+  };
+
+  if (admin) return <Admin products={products} setProducts={setProducts} onBack={() => setAdmin(false)} />;
+  if (selected) return <ProductPage product={selected} onBack={() => setSelected(null)} onBuy={pushCart} />;
+  return <Catalog products={products.filter(p => p.published)} cart={cart} onOpen={setSelected} onAdmin={() => setAdmin(true)} />;
+}
+
+function Header({ onAdmin, cartCount }) {
+  return <header className="topbar">
+    <img src="/studio82-logo.png" className="logo" />
+    <div className="brandBlock">
+      <span className="kicker">STUDIO 82</span>
+      <h1>В НАЛИЧИИ</h1>
+    </div>
+    <button className="adminBtn" onClick={onAdmin}>Админ</button>
+    <div className="cartPill"><ShoppingBag size={16}/> {cartCount}</div>
+  </header>
+}
+
+function Catalog({ products, cart, onOpen, onAdmin }) {
+  const [q, setQ] = useState('');
+  const visible = products.filter(p => (p.title + p.model + p.color).toLowerCase().includes(q.toLowerCase()));
+  return <main className="screen">
+    <Header onAdmin={onAdmin} cartCount={cart.length}/>
+    <section className="hero">
+      <div className="line" />
+      <p>Каталог кроссовок STUDIO 82. Размеры, описание и цены редактируются в админ-панели.</p>
+      <input className="search" placeholder="Поиск модели" value={q} onChange={e=>setQ(e.target.value)} />
+    </section>
+    <section className="grid">
+      {visible.map((p, i) => <ProductCard key={p.id + i} p={p} onClick={() => onOpen(p)} />)}
+    </section>
+  </main>
+}
+
+function ProductCard({ p, onClick }) {
+  const available = p.sizes.filter(s => Number(s.stock) > 0);
+  const sizeText = available.length ? available.map(s => s.size).join(', ') : 'нет в наличии';
+  return <button className="card" onClick={onClick}>
+    <div className="imageBox">
+      {p.image ? <img src={p.image} /> : <div className="shoePlaceholder">{p.brand}<br/><b>{p.model.replace(p.brand, '').trim()}</b></div>}
+    </div>
+    <div className="cardBody">
+      <h3>{p.model}</h3>
+      <p>{p.color}</p>
+      <div className="cardFooter">
+        <span>Размеры {sizeText}</span>
+        <b>{money(p.price)}</b>
+      </div>
+    </div>
+  </button>
+}
+
+function ProductPage({ product, onBack, onBuy }) {
+  const [size, setSize] = useState('');
+  const available = product.sizes.filter(s => Number(s.stock) > 0);
+  return <main className="screen detail">
+    <button className="back" onClick={onBack}><ArrowLeft size={18}/> Назад</button>
+    <img src="/studio82-logo.png" className="detailLogo" />
+    <h1>В НАЛИЧИИ</h1>
+    <p className="subTitle">{product.model}</p>
+    <div className="line" />
+    <div className="detailImage">
+      {product.image ? <img src={product.image}/> : <div className="shoePlaceholder big">{product.title}</div>}
+    </div>
+    <h2>{product.color}</h2>
+    <p className="description">{product.description}</p>
+    <div className="sizes">
+      {product.sizes.map(s => <button key={s.sku} disabled={!Number(s.stock)} className={size===s.size?'active':''} onClick={()=>setSize(s.size)}>{s.size}</button>)}
+    </div>
+    <div className="bottomBar">
+      <div className="miniLogo">82</div>
+      <div>{money(product.price)}</div>
+      <button disabled={!size} onClick={()=>onBuy({productId: product.id, title: product.title, size, price: product.price})}>Купить</button>
+    </div>
+    {!available.length && <p className="muted">Товара нет в наличии</p>}
+  </main>
+}
+
+function Admin({ products, setProducts, onBack }) {
+  const [editingId, setEditingId] = useState(null);
+  const createProduct = () => {
+    const id = 'new-' + Date.now();
+    setProducts([{ id, brand:'', model:'Новая модель', title:'Новая модель', color:'', description:'', price:'', image:'', published:true, sizes:[] }, ...products]);
+    setEditingId(id);
+  };
+  const remove = (id) => setProducts(products.filter(p => p.id !== id));
+  const update = (id, patch) => setProducts(products.map(p => p.id === id ? {...p, ...patch} : p));
+
+  return <main className="screen adminScreen">
+    <div className="adminHeader">
+      <button className="back" onClick={onBack}><ArrowLeft size={18}/> Витрина</button>
+      <button className="primary" onClick={createProduct}><Plus size={18}/> Добавить товар</button>
+    </div>
+    <h1>Админ-панель</h1>
+    <p className="muted">Редактирование пока сохраняется в этом браузере. Для общей админки нужна база данных.</p>
+    <div className="adminList">
+      {products.map((p, i) => editingId === p.id ?
+        <Editor key={p.id+i} product={p} onSave={(patch)=>{update(p.id, patch); setEditingId(null)}} onCancel={()=>setEditingId(null)} /> :
+        <div className="adminRow" key={p.id+i}>
+          <div><b>{p.title}</b><span>{p.sizes.length} размеров · {p.published ? 'опубликован' : 'скрыт'}</span></div>
+          <button onClick={()=>update(p.id,{published:!p.published})}>{p.published ? <EyeOff/> : <Eye/>}</button>
+          <button onClick={()=>setEditingId(p.id)}><Pencil/></button>
+          <button onClick={()=>remove(p.id)}><Trash2/></button>
+        </div>
+      )}
+    </div>
+  </main>
+}
+
+function Editor({ product, onSave, onCancel }) {
+  const [p, setP] = useState(product);
+  const set = (k,v)=>setP({...p,[k]:v});
+  const sizesText = p.sizes.map(s => `${s.size}:${s.stock}`).join(', ');
+  const [sizes, setSizes] = useState(sizesText);
+  const save = () => {
+    const parsedSizes = sizes.split(',').map(x=>x.trim()).filter(Boolean).map((x,idx)=>{
+      const [size, stock='1'] = x.split(':').map(v=>v.trim());
+      return { sku: `${p.id}-${size}-${idx}`, size, stock: Number(stock)||0, status: Number(stock)>0?'В наличии':'Нет' };
+    });
+    onSave({...p, sizes: parsedSizes, title: `${p.model} ${p.color}`.trim()});
+  };
+  const fileToDataUrl = (file) => {
+    const reader = new FileReader();
+    reader.onload = () => set('image', reader.result);
+    reader.readAsDataURL(file);
+  };
+  return <div className="editor">
+    <label>Бренд<input value={p.brand || ''} onChange={e=>set('brand',e.target.value)} /></label>
+    <label>Модель<input value={p.model || ''} onChange={e=>set('model',e.target.value)} /></label>
+    <label>Цвет<input value={p.color || ''} onChange={e=>set('color',e.target.value)} /></label>
+    <label>Цена<input value={p.price || ''} placeholder="Например 12000" onChange={e=>set('price',e.target.value)} /></label>
+    <label>Описание<textarea value={p.description || ''} onChange={e=>set('description',e.target.value)} /></label>
+    <label>Размеры и остатки<textarea value={sizes} onChange={e=>setSizes(e.target.value)} placeholder="36:1, 37:2, 38:0" /></label>
+    <label className="upload"><Upload size={18}/> Загрузить фото<input type="file" accept="image/*" onChange={e=>e.target.files[0] && fileToDataUrl(e.target.files[0])} /></label>
+    {p.image && <img className="preview" src={p.image}/>} 
+    <div className="editorActions"><button className="primary" onClick={save}><Save size={16}/> Сохранить</button><button onClick={onCancel}>Отмена</button></div>
+  </div>
+}
+
+createRoot(document.getElementById('root')).render(<App/>);
