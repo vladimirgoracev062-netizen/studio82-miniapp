@@ -21,6 +21,7 @@ function read<T>(key: string, fallback: T): T {
 function write<T>(key: string, value: T) {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(key, JSON.stringify(value));
+  window.dispatchEvent(new Event(`studio82:${key}`));
 }
 
 export function getProducts(): Product[] {
@@ -29,6 +30,10 @@ export function getProducts(): Product[] {
 
 export function saveProducts(products: Product[]) {
   write(PRODUCTS_KEY, products);
+}
+
+export function resetProducts() {
+  saveProducts(seedProducts);
 }
 
 export function getCart(): CartItem[] {
@@ -48,5 +53,18 @@ export function saveOrders(orders: Order[]) {
 }
 
 export function formatPrice(value: number) {
-  return new Intl.NumberFormat('ru-RU').format(value) + ' ₽';
+  return new Intl.NumberFormat('ru-RU').format(value || 0) + ' ₽';
+}
+
+export function safeImage(product?: Product | null) {
+  return product?.images?.find(Boolean) || '/placeholder-shoe.svg';
+}
+
+export function productAvailable(product: Product) {
+  return product.isPublished && product.sizes.some((size) => Number(size.stock) > 0);
+}
+
+export function getTelegramUser() {
+  if (typeof window === 'undefined') return null;
+  return (window as any).Telegram?.WebApp?.initDataUnsafe?.user || null;
 }
