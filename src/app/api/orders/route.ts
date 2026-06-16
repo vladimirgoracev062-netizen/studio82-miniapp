@@ -5,8 +5,12 @@ import type { CartItem } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID;
+function getTelegramEnv() {
+  return {
+    token: (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
+    chatId: (process.env.TELEGRAM_ADMIN_CHAT_ID || '').trim(),
+  };
+}
 
 function formatRub(value: number) {
   return new Intl.NumberFormat('ru-RU').format(value || 0) + ' ₽';
@@ -46,19 +50,39 @@ function buildAdminOrderText(order: ReturnType<typeof orderFromRow>, adminUrl: s
 }
 
 async function notifyAdminAboutOrder(order: ReturnType<typeof orderFromRow>, origin: string) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_ADMIN_CHAT_ID) return;
+  const { token, chatId } = getTelegramEnv();
+
+  if (!token || !chatId) {
+    console.warn('[orders] Telegram notification skipped: env variables are missing', {
+      hasToken: Boolean(token),
+      hasChatId: Boolean(chatId),
+    });
+    return { ok: false, skipped: true, error: 'Telegram env variables are missing' };
+  }
+
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const telegramResponse = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: TELEGRAM_ADMIN_CHAT_ID,
+        chat_id: chatId,
         text: buildAdminOrderText(order, origin),
         disable_web_page_preview: true,
       }),
     });
-  } catch (error) {
-    console.error('Failed to send Telegram order notification', error);
+
+    const telegramBody = await telegramResponse.json().catch(() => null);
+
+    if (!telegramResponse.ok || telegramBody?.ok === false) {
+      console.error('[orders] Telegram API error', telegramBody);
+      return { ok: false, error: 'Telegram API returned error', telegramStatus: telegramResponse.status, telegramBody };
+    }
+
+    console.log('[orders] Telegram order notification sent', { orderId: order.id });
+    return { ok: true };
+  } catch (error: any) {
+    console.error('[orders] Failed to send Telegram order notification', error);
+    return { ok: false, error: error.message || 'Failed to send Telegram notification' };
   }
 }
 
@@ -156,8 +180,8 @@ export async function POST(request: Request) {
 
     const { data: fullOrder } = await supabase.from('orders').select('*, order_items(*)').eq('id', order.id).single();
     const normalizedOrder = fullOrder ? orderFromRow(fullOrder) : orderFromRow({ ...order, order_items: orderItems });
-    await notifyAdminAboutOrder(normalizedOrder, new URL(request.url).origin);
-    return NextResponse.json({ order: normalizedOrder });
+    const notification = await notifyAdminAboutOrder(normalizedOrder, new URL(request.url).origin);
+    return NextResponse.json({ order: normalizedOrder, notification });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to create order' }, { status: 500 });
   }

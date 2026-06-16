@@ -37,3 +37,10 @@ TELEGRAM_ADMIN_CHAT_ID=your_numeric_chat_id_or_group_chat_id
 ```
 
 После изменения переменных сделайте Redeploy без build cache.
+
+## Telegram notification debug
+After deploy, open this URL to test Vercel-side Telegram notifications:
+
+`https://studio82-miniapp.vercel.app/api/telegram-test?password=admin82`
+
+If it returns `{"ok":true}`, Vercel can send Telegram messages.
