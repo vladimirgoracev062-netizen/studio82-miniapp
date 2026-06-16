@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { formatPrice, getCart, getProducts, saveCart, safeImage } from '@/lib/store';
+import { fetchProducts, formatPrice, getCart, saveCart, safeImage } from '@/lib/store';
 import type { Product } from '@/types';
 
 export default function ProductPage({ params }: { params: { id: string } }) {
@@ -11,8 +11,10 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   const [activeImage, setActiveImage] = useState(0);
 
   useEffect(() => {
-    const found = getProducts().find((p) => p.id === params.id) || null;
-    setProduct(found);
+    fetchProducts().then((items) => {
+      const found = items.find((p) => p.id === params.id) || null;
+      setProduct(found);
+    }).catch(() => setProduct(null));
     const tg = (window as any).Telegram?.WebApp;
     tg?.ready?.();
   }, [params.id]);

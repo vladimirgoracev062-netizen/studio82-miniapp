@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { formatPrice, getCart, getProducts, safeImage, saveCart } from '@/lib/store';
+import { fetchProducts, formatPrice, getCart, safeImage, saveCart } from '@/lib/store';
 import type { CartItem, Product } from '@/types';
 
 export default function CartPage() {
@@ -11,7 +11,7 @@ export default function CartPage() {
 
   useEffect(() => {
     setCart(getCart());
-    setProducts(getProducts());
+    fetchProducts().then(setProducts).catch(() => setProducts([]));
   }, []);
 
   const lines = useMemo(() => cart.map((item) => {

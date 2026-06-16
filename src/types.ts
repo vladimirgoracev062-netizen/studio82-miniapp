@@ -33,13 +33,17 @@ export type OrderStatus =
 
 export type Order = {
   id: string;
+  dbId?: string;
   createdAt: string;
+  telegramId?: string;
+  telegramUsername?: string;
   customerName: string;
   phone: string;
   city: string;
   cdekPoint?: string;
   total: number;
   status: OrderStatus;
+  paymentStatus?: string;
   trackNumber?: string;
   items: Array<{ title: string; size: string; price: number; quantity: number }>;
 };

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { formatPrice, getCart, getProducts, productAvailable, safeImage } from '@/lib/store';
+import { fetchProducts, formatPrice, getCart, productAvailable, safeImage } from '@/lib/store';
 import type { Product } from '@/types';
 
 export default function Home() {
@@ -13,7 +13,7 @@ export default function Home() {
   const [onlyAvailable, setOnlyAvailable] = useState(false);
 
   useEffect(() => {
-    setProducts(getProducts().filter((p) => p.isPublished));
+    fetchProducts().then((items) => setProducts(items.filter((p) => p.isPublished))).catch(() => setProducts([]));
     setCartCount(getCart().reduce((sum, item) => sum + item.quantity, 0));
     const tg = (window as any).Telegram?.WebApp;
     tg?.ready?.();

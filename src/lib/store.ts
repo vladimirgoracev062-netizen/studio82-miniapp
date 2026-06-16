@@ -3,9 +3,9 @@
 import { seedProducts } from '@/data/products';
 import type { CartItem, Order, Product } from '@/types';
 
-const PRODUCTS_KEY = 'studio82_products';
 const CART_KEY = 'studio82_cart';
-const ORDERS_KEY = 'studio82_orders';
+const LEGACY_PRODUCTS_KEY = 'studio82_products';
+const LEGACY_ORDERS_KEY = 'studio82_orders';
 
 function read<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -24,16 +24,142 @@ function write<T>(key: string, value: T) {
   window.dispatchEvent(new Event(`studio82:${key}`));
 }
 
+export async function fetchProducts(adminPassword?: string): Promise<Product[]> {
+  const admin = Boolean(adminPassword);
+  const response = await fetch(`/api/products${admin ? '?admin=1' : ''}`, {
+    cache: 'no-store',
+    headers: adminPassword ? { 'x-admin-password': adminPassword } : undefined,
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось загрузить товары');
+  }
+  const data = await response.json();
+  return data.products || [];
+}
+
+export async function saveProductToDb(product: Product, adminPassword: string): Promise<Product[]> {
+  const response = await fetch(`/api/products${product.id ? `/${product.id}` : ''}`, {
+    method: product.id ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+    body: JSON.stringify(product),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось сохранить товар');
+  }
+  const data = await response.json();
+  return data.products || [];
+}
+
+export async function createProductInDb(product: Product, adminPassword: string): Promise<Product[]> {
+  const response = await fetch('/api/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+    body: JSON.stringify(product),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось добавить товар');
+  }
+  const data = await response.json();
+  return data.products || [];
+}
+
+export async function deleteProductFromDb(productId: string, adminPassword: string): Promise<Product[]> {
+  const response = await fetch(`/api/products/${productId}`, {
+    method: 'DELETE',
+    headers: { 'x-admin-password': adminPassword },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось удалить товар');
+  }
+  const data = await response.json();
+  return data.products || [];
+}
+
+export async function uploadImages(files: FileList | File[], adminPassword: string): Promise<string[]> {
+  const formData = new FormData();
+  Array.from(files).forEach((file) => formData.append('files', file));
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'x-admin-password': adminPassword },
+    body: formData,
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось загрузить фото');
+  }
+  const data = await response.json();
+  return data.urls || [];
+}
+
+export async function fetchOrders(adminPassword?: string, telegramId?: string): Promise<Order[]> {
+  const params = new URLSearchParams();
+  if (adminPassword) params.set('admin', '1');
+  if (telegramId) params.set('telegram_id', telegramId);
+  const response = await fetch(`/api/orders?${params.toString()}`, {
+    cache: 'no-store',
+    headers: adminPassword ? { 'x-admin-password': adminPassword } : undefined,
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось загрузить заказы');
+  }
+  const data = await response.json();
+  return data.orders || [];
+}
+
+export async function createOrderInDb(payload: {
+  cart: CartItem[];
+  customerName: string;
+  phone: string;
+  city: string;
+  cdekPoint?: string;
+  telegramId?: string;
+  telegramUsername?: string;
+}) {
+  const response = await fetch('/api/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось создать заказ');
+  }
+  const data = await response.json();
+  return data.order as Order;
+}
+
+export async function updateOrderInDb(orderId: string, adminPassword: string, patch: { status?: string; trackNumber?: string; paymentStatus?: string }) {
+  const response = await fetch(`/api/orders/${orderId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+    body: JSON.stringify(patch),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось обновить заказ');
+  }
+}
+
+// Legacy helpers for fallback/compatibility
 export function getProducts(): Product[] {
-  return read<Product[]>(PRODUCTS_KEY, seedProducts);
+  return read<Product[]>(LEGACY_PRODUCTS_KEY, seedProducts);
 }
 
 export function saveProducts(products: Product[]) {
-  write(PRODUCTS_KEY, products);
+  write(LEGACY_PRODUCTS_KEY, products);
 }
 
-export function resetProducts() {
-  saveProducts(seedProducts);
+export function getOrders(): Order[] {
+  return read<Order[]>(LEGACY_ORDERS_KEY, []);
+}
+
+export function saveOrders(orders: Order[]) {
+  write(LEGACY_ORDERS_KEY, orders);
 }
 
 export function getCart(): CartItem[] {
@@ -42,14 +168,6 @@ export function getCart(): CartItem[] {
 
 export function saveCart(cart: CartItem[]) {
   write(CART_KEY, cart);
-}
-
-export function getOrders(): Order[] {
-  return read<Order[]>(ORDERS_KEY, []);
-}
-
-export function saveOrders(orders: Order[]) {
-  write(ORDERS_KEY, orders);
 }
 
 export function formatPrice(value: number) {

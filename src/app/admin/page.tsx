@@ -1,11 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { formatPrice, getOrders, getProducts, resetProducts, safeImage, saveOrders, saveProducts } from '@/lib/store';
+import {
+  createProductInDb,
+  deleteProductFromDb,
+  fetchOrders,
+  fetchProducts,
+  formatPrice,
+  safeImage,
+  saveProductToDb,
+  updateOrderInDb,
+  uploadImages,
+} from '@/lib/store';
 import type { Order, OrderStatus, Product, ProductSize } from '@/types';
 
 const statuses: OrderStatus[] = ['Новый', 'Оплачен', 'Собирается', 'Передан в СДЭК', 'В пути', 'Готов к выдаче', 'Завершён'];
-
 type AdminTab = 'products' | 'add' | 'orders';
 
 type ProductDraft = {
@@ -21,26 +30,10 @@ type ProductDraft = {
 };
 
 const defaultSizes = '36:0, 36.5:0, 37:0, 37.5:0, 38:0, 38.5:0, 39:0, 40:0, 41:0, 42:0, 43:0, 44:0, 45:0';
-
-const emptyDraft: ProductDraft = {
-  brand: '',
-  title: '',
-  color: '',
-  description: '',
-  price: 0,
-  images: [],
-  imageUrl: '',
-  sizes: defaultSizes,
-  isPublished: true,
-};
+const emptyDraft: ProductDraft = { brand: '', title: '', color: '', description: '', price: 0, images: [], imageUrl: '', sizes: defaultSizes, isPublished: true };
 
 function createId(value: string) {
-  const slug = value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-zа-яё0-9]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
+  const slug = value.toLowerCase().trim().replace(/[^a-zа-яё0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 60);
   return `${slug || 'product'}-${Date.now().toString().slice(-6)}`;
 }
 
@@ -56,29 +49,12 @@ function parseSizes(value: string): ProductSize[] {
     .filter((item) => item.size);
 }
 
-function sizesToText(sizes: ProductSize[]) {
-  return sizes.map((item) => `${item.size}:${item.stock}`).join(', ');
-}
-
-function readImageFile(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-async function readImageFiles(files?: FileList | null) {
-  if (!files?.length) return [];
-  return Promise.all(Array.from(files).map(readImageFile));
-}
-
 function normalizeImageUrlList(value: string) {
-  return value
-    .split(/\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return value.split(/\n|,/).map((item) => item.trim()).filter(Boolean);
+}
+
+function imageUrlsText(product: Product) {
+  return (product.images || []).filter((url) => !url.startsWith('/') && !url.startsWith('data:')).join('\n');
 }
 
 export default function AdminPage() {
@@ -88,16 +64,30 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [draft, setDraft] = useState<ProductDraft>(emptyDraft);
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<AdminTab>('products');
   const [productQuery, setProductQuery] = useState('');
 
   const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin82';
 
   useEffect(() => {
-    setLogged(window.sessionStorage.getItem('studio82_admin') === '1');
-    setProducts(getProducts());
-    setOrders(getOrders());
-  }, []);
+    const ok = window.sessionStorage.getItem('studio82_admin') === '1';
+    setLogged(ok);
+    if (ok) loadAdminData(adminPassword);
+  }, [adminPassword]);
+
+  async function loadAdminData(pass: string) {
+    try {
+      setLoading(true);
+      const [productsData, ordersData] = await Promise.all([fetchProducts(pass), fetchOrders(pass)]);
+      setProducts(productsData);
+      setOrders(ordersData);
+    } catch (err: any) {
+      setMessage(err.message || 'Не удалось загрузить данные');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const publishedCount = useMemo(() => products.filter((product) => product.isPublished).length, [products]);
   const filteredProducts = useMemo(() => {
@@ -105,7 +95,7 @@ export default function AdminPage() {
     return products.filter((product) => !query || `${product.brand} ${product.title} ${product.color}`.toLowerCase().includes(query));
   }, [products, productQuery]);
 
-  function login() {
+  async function login() {
     if (password !== adminPassword) {
       setMessage('Неверный пароль');
       return;
@@ -113,6 +103,7 @@ export default function AdminPage() {
     window.sessionStorage.setItem('studio82_admin', '1');
     setLogged(true);
     setMessage('');
+    await loadAdminData(password);
   }
 
   function logout() {
@@ -120,87 +111,123 @@ export default function AdminPage() {
     setLogged(false);
   }
 
-  function persistProducts(next: Product[]) {
-    setProducts(next);
-    saveProducts(next);
-  }
-
-  function persistOrders(next: Order[]) {
-    setOrders(next);
-    saveOrders(next);
+  async function persistProduct(product: Product) {
+    try {
+      setMessage('Сохраняем...');
+      const next = await saveProductToDb(product, adminPassword);
+      setProducts(next);
+      setMessage('Изменения сохранены');
+    } catch (err: any) {
+      setMessage(err.message || 'Ошибка сохранения');
+    }
   }
 
   function updateProduct(id: string, patch: Partial<Product>) {
-    persistProducts(products.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    const product = products.find((p) => p.id === id);
+    if (!product) return;
+    const nextProduct = { ...product, ...patch };
+    setProducts(products.map((p) => (p.id === id ? nextProduct : p)));
+    persistProduct(nextProduct);
   }
 
   function updateSize(productId: string, size: string, stock: number) {
-    persistProducts(
-      products.map((p) =>
-        p.id === productId ? { ...p, sizes: p.sizes.map((s) => (s.size === size ? { ...s, stock: Math.max(0, stock) } : s)) } : p,
-      ),
-    );
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    const nextProduct = { ...product, sizes: product.sizes.map((s) => (s.size === size ? { ...s, stock: Math.max(0, stock) } : s)) };
+    setProducts(products.map((p) => (p.id === productId ? nextProduct : p)));
+    persistProduct(nextProduct);
   }
 
   function addSize(productId: string) {
     const size = window.prompt('Введите размер, например 42.5');
     if (!size) return;
-    persistProducts(products.map((p) => p.id === productId ? { ...p, sizes: [...p.sizes, { size, stock: 0 }] } : p));
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    const nextProduct = { ...product, sizes: [...product.sizes, { size, stock: 0 }] };
+    setProducts(products.map((p) => (p.id === productId ? nextProduct : p)));
+    persistProduct(nextProduct);
   }
 
   function removeSize(productId: string, size: string) {
-    persistProducts(products.map((p) => p.id === productId ? { ...p, sizes: p.sizes.filter((item) => item.size !== size) } : p));
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    const nextProduct = { ...product, sizes: product.sizes.filter((item) => item.size !== size) };
+    setProducts(products.map((p) => (p.id === productId ? nextProduct : p)));
+    persistProduct(nextProduct);
   }
 
-  function addProduct() {
-    if (!draft.title.trim()) {
-      setMessage('Введите название товара');
-      return;
+  async function addProduct() {
+    try {
+      if (!draft.title.trim()) throw new Error('Введите название товара');
+      const imageUrls = normalizeImageUrlList(draft.imageUrl);
+      const images = [...draft.images, ...imageUrls].filter(Boolean);
+      const product: Product = {
+        id: createId(draft.title),
+        brand: draft.brand.trim() || 'STUDIO 82',
+        name: draft.title.trim(),
+        title: draft.title.trim(),
+        color: draft.color.trim(),
+        description: draft.description.trim() || 'Описание можно изменить в админ-панели.',
+        price: Number(draft.price) || 0,
+        images: images.length ? images : ['/placeholder-shoe.svg'],
+        isPublished: draft.isPublished,
+        sizes: parseSizes(draft.sizes),
+      };
+      setMessage('Добавляем товар...');
+      const next = await createProductInDb(product, adminPassword);
+      setProducts(next);
+      setDraft(emptyDraft);
+      setTab('products');
+      setMessage('Товар добавлен');
+    } catch (err: any) {
+      setMessage(err.message || 'Не удалось добавить товар');
     }
-    const imageUrls = normalizeImageUrlList(draft.imageUrl);
-    const images = [...draft.images, ...imageUrls].filter(Boolean);
-
-    const product: Product = {
-      id: createId(draft.title),
-      brand: draft.brand.trim() || 'STUDIO 82',
-      name: draft.title.trim(),
-      title: draft.title.trim(),
-      color: draft.color.trim(),
-      description: draft.description.trim() || 'Описание можно изменить в админ-панели.',
-      price: Number(draft.price) || 0,
-      images: images.length ? images : ['/placeholder-shoe.svg'],
-      isPublished: draft.isPublished,
-      sizes: parseSizes(draft.sizes),
-    };
-
-    persistProducts([product, ...products]);
-    setDraft(emptyDraft);
-    setTab('products');
-    setMessage('Товар добавлен');
   }
 
-  function deleteProduct(id: string) {
+  async function deleteProduct(id: string) {
     if (!window.confirm('Удалить товар?')) return;
-    persistProducts(products.filter((product) => product.id !== id));
+    try {
+      const next = await deleteProductFromDb(id, adminPassword);
+      setProducts(next);
+      setMessage('Товар удалён');
+    } catch (err: any) {
+      setMessage(err.message || 'Не удалось удалить товар');
+    }
   }
 
   async function uploadDraftImages(files?: FileList | null) {
-    const images = await readImageFiles(files);
-    setDraft((current) => ({ ...current, images: [...current.images, ...images] }));
+    if (!files?.length) return;
+    try {
+      setMessage('Загружаем фото...');
+      const urls = await uploadImages(files, adminPassword);
+      setDraft((current) => ({ ...current, images: [...current.images, ...urls] }));
+      setMessage('Фото загружены');
+    } catch (err: any) {
+      setMessage(err.message || 'Не удалось загрузить фото');
+    }
   }
 
   async function uploadProductImages(productId: string, files?: FileList | null) {
-    const images = await readImageFiles(files);
-    if (!images.length) return;
-    const product = products.find((item) => item.id === productId);
-    updateProduct(productId, { images: [...(product?.images || []), ...images].filter(Boolean) });
+    if (!files?.length) return;
+    try {
+      const urls = await uploadImages(files, adminPassword);
+      const product = products.find((item) => item.id === productId);
+      if (!product) return;
+      const nextProduct = { ...product, images: [...(product.images || []), ...urls].filter(Boolean) };
+      setProducts(products.map((p) => (p.id === productId ? nextProduct : p)));
+      await persistProduct(nextProduct);
+    } catch (err: any) {
+      setMessage(err.message || 'Не удалось загрузить фото');
+    }
   }
 
   function removeProductImage(productId: string, index: number) {
     const product = products.find((item) => item.id === productId);
     if (!product) return;
     const nextImages = product.images.filter((_, imageIndex) => imageIndex !== index);
-    updateProduct(productId, { images: nextImages.length ? nextImages : ['/placeholder-shoe.svg'] });
+    const nextProduct = { ...product, images: nextImages.length ? nextImages : ['/placeholder-shoe.svg'] };
+    setProducts(products.map((p) => (p.id === productId ? nextProduct : p)));
+    persistProduct(nextProduct);
   }
 
   function removeDraftImage(index: number) {
@@ -209,9 +236,24 @@ export default function AdminPage() {
 
   function applyProductImageUrls(productId: string, value: string) {
     const current = products.find((product) => product.id === productId);
-    const dataImages = current?.images.filter((image) => image.startsWith('data:')) || [];
+    if (!current) return;
+    const uploadedImages = current.images.filter((image) => !image.startsWith('/') && !image.startsWith('data:') && !normalizeImageUrlList(value).includes(image));
     const urlImages = normalizeImageUrlList(value);
-    updateProduct(productId, { images: [...dataImages, ...urlImages].filter(Boolean) });
+    const nextProduct = { ...current, images: [...uploadedImages, ...urlImages].filter(Boolean) };
+    setProducts(products.map((p) => (p.id === productId ? nextProduct : p)));
+    persistProduct(nextProduct);
+  }
+
+  async function updateOrder(order: Order, patch: Partial<Order>) {
+    if (!order.dbId) return;
+    const nextOrder = { ...order, ...patch };
+    setOrders(orders.map((item) => (item.dbId === order.dbId ? nextOrder : item)));
+    try {
+      await updateOrderInDb(order.dbId, adminPassword, { status: patch.status, trackNumber: patch.trackNumber });
+      setMessage('Заказ обновлён');
+    } catch (err: any) {
+      setMessage(err.message || 'Не удалось обновить заказ');
+    }
   }
 
   if (!logged) {
@@ -239,9 +281,7 @@ export default function AdminPage() {
           <button className="btn light" onClick={logout}>Выйти</button>
         </div>
 
-        <div className="notice">
-          Сейчас это MVP: изменения сохраняются в браузере администратора. Следующий этап — Supabase, чтобы товары, фото и заказы видели все клиенты.
-        </div>
+        <div className="notice">Данные теперь сохраняются в Supabase: товары, фото, остатки и заказы видны всем клиентам.</div>
 
         <div className="admin-tabs">
           <button className={tab === 'products' ? 'active' : ''} onClick={() => setTab('products')}>Товары</button>
@@ -249,7 +289,8 @@ export default function AdminPage() {
           <button className={tab === 'orders' ? 'active' : ''} onClick={() => setTab('orders')}>Заказы</button>
         </div>
 
-        {message && <p className="success-text">{message}</p>}
+        {loading && <p className="muted">Загрузка...</p>}
+        {message && <p className={message.includes('ош') || message.includes('Не') || message.includes('Невер') ? 'error-text' : 'success-text'}>{message}</p>}
 
         {tab === 'add' && (
           <section>
@@ -261,20 +302,8 @@ export default function AdminPage() {
               <input className="input" type="number" placeholder="Цена" value={draft.price || ''} onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })} />
               <textarea className="input" rows={4} placeholder="Описание" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
               <textarea className="input" rows={2} placeholder="Ссылки на фото — каждая с новой строки" value={draft.imageUrl} onChange={(e) => setDraft({ ...draft, imageUrl: e.target.value })} />
-              <label className="upload-box">
-                <span>Загрузить фото с компьютера</span>
-                <input type="file" accept="image/*" multiple onChange={(e) => uploadDraftImages(e.target.files)} />
-              </label>
-              {draft.images.length > 0 && (
-                <div className="admin-gallery">
-                  {draft.images.map((image, index) => (
-                    <div className="admin-photo square-media" key={image + index}>
-                      <img src={image} alt="Фото товара" />
-                      <button onClick={() => removeDraftImage(index)}>×</button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <label className="upload-box"><span>Загрузить фото с компьютера</span><input type="file" accept="image/*" multiple onChange={(e) => uploadDraftImages(e.target.files)} /></label>
+              {draft.images.length > 0 && <div className="admin-gallery">{draft.images.map((image, index) => <div className="admin-photo square-media" key={image + index}><img src={image} alt="Фото товара" /><button onClick={() => removeDraftImage(index)}>×</button></div>)}</div>}
               <input className="input" placeholder="Размеры и остатки: 40:1, 41:0, 42:2" value={draft.sizes} onChange={(e) => setDraft({ ...draft, sizes: e.target.value })} />
               <label className="toggle-line"><input type="checkbox" checked={draft.isPublished} onChange={(e) => setDraft({ ...draft, isPublished: e.target.checked })} /> <span>Опубликовать товар</span></label>
               <button className="btn" onClick={addProduct}>Добавить товар</button>
@@ -282,83 +311,53 @@ export default function AdminPage() {
           </section>
         )}
 
-        {tab === 'orders' && (
+        {tab === 'products' && (
           <section>
-            <h2>Заказы</h2>
-            <div className="admin-table">
-              {orders.length === 0 && <div className="empty">Заказов пока нет</div>}
-              {orders.map((order) => (
-                <div className="admin-row" key={order.id}>
-                  <b>#{order.id} — {order.customerName}</b>
-                  <p className="muted">{order.phone} · {order.city} · {order.cdekPoint || 'ПВЗ не указан'}</p>
-                  {order.items.map((item) => <p key={item.title + item.size}>{item.title}, размер {item.size} × {item.quantity}</p>)}
-                  <b>{formatPrice(order.total)}</b>
-                  <select className="input" value={order.status} onChange={(e) => persistOrders(orders.map((o) => (o.id === order.id ? { ...o, status: e.target.value as OrderStatus } : o)))}>
-                    {statuses.map((s) => <option key={s}>{s}</option>)}
-                  </select>
-                  <input className="input" placeholder="Трек-номер СДЭК" value={order.trackNumber || ''} onChange={(e) => persistOrders(orders.map((o) => (o.id === order.id ? { ...o, trackNumber: e.target.value } : o)))} />
+            <input className="input search" placeholder="Поиск товара в админке" value={productQuery} onChange={(e) => setProductQuery(e.target.value)} />
+            <div className="admin-products">
+              {filteredProducts.map((product) => (
+                <div className="admin-product" key={product.id}>
+                  <div className="admin-product-top">
+                    <div className="admin-preview square-media"><img src={safeImage(product)} alt={product.title} /></div>
+                    <div className="admin-title"><b>{product.title}</b><span>{formatPrice(product.price)}</span></div>
+                    <button className="link-danger" onClick={() => deleteProduct(product.id)}>Удалить</button>
+                  </div>
+                  <div className="form compact">
+                    <input className="input" value={product.brand} onChange={(e) => updateProduct(product.id, { brand: e.target.value })} />
+                    <input className="input" value={product.title} onChange={(e) => updateProduct(product.id, { title: e.target.value, name: e.target.value })} />
+                    <input className="input" value={product.color} onChange={(e) => updateProduct(product.id, { color: e.target.value })} />
+                    <input className="input" type="number" value={product.price || ''} onChange={(e) => updateProduct(product.id, { price: Number(e.target.value) })} />
+                    <textarea className="input" rows={3} value={product.description} onChange={(e) => updateProduct(product.id, { description: e.target.value })} />
+                    <textarea className="input" rows={2} placeholder="Ссылки на фото" defaultValue={imageUrlsText(product)} onBlur={(e) => applyProductImageUrls(product.id, e.target.value)} />
+                    <label className="upload-box"><span>Добавить фото</span><input type="file" accept="image/*" multiple onChange={(e) => uploadProductImages(product.id, e.target.files)} /></label>
+                    <div className="admin-gallery">{product.images.map((image, index) => <div className="admin-photo square-media" key={image + index}><img src={image} alt="Фото" /><button onClick={() => removeProductImage(product.id, index)}>×</button></div>)}</div>
+                    <label className="toggle-line"><input type="checkbox" checked={product.isPublished} onChange={(e) => updateProduct(product.id, { isPublished: e.target.checked })} /> <span>{product.isPublished ? 'Опубликован' : 'Скрыт'}</span></label>
+                    <div className="sizes-admin">{product.sizes.map((size) => <label key={size.size}><span>{size.size}</span><input type="number" value={size.stock} onChange={(e) => updateSize(product.id, size.size, Number(e.target.value))} /><button onClick={() => removeSize(product.id, size.size)}>×</button></label>)}</div>
+                    <button className="btn light" onClick={() => addSize(product.id)}>Добавить размер</button>
+                  </div>
                 </div>
               ))}
             </div>
           </section>
         )}
 
-        {tab === 'products' && (
+        {tab === 'orders' && (
           <section>
-            <div className="admin-section-head">
-              <h2>Товары</h2>
-              <button className="btn light" onClick={() => setTab('add')}>+ Добавить</button>
-            </div>
-            <input className="input" placeholder="Поиск товара" value={productQuery} onChange={(e) => setProductQuery(e.target.value)} />
-            <div className="admin-table">
-              {filteredProducts.map((product) => (
-                <div className="admin-row" key={product.id}>
-                  <div className="admin-product-top">
-                    <img className="admin-thumb" src={safeImage(product)} alt={product.title} />
-                    <div>
-                      <b>{product.title}</b>
-                      <p className="muted">{formatPrice(product.price)} · {product.isPublished ? 'опубликован' : 'скрыт'}</p>
-                    </div>
-                  </div>
-                  <input className="input" placeholder="Бренд" value={product.brand} onChange={(e) => updateProduct(product.id, { brand: e.target.value })} />
-                  <input className="input" placeholder="Название" value={product.title} onChange={(e) => updateProduct(product.id, { title: e.target.value, name: e.target.value })} />
-                  <input className="input" placeholder="Цвет" value={product.color} onChange={(e) => updateProduct(product.id, { color: e.target.value })} />
-                  <input className="input" type="number" placeholder="Цена" value={product.price} onChange={(e) => updateProduct(product.id, { price: Number(e.target.value) })} />
-                  <textarea className="input" rows={3} placeholder="Описание" value={product.description} onChange={(e) => updateProduct(product.id, { description: e.target.value })} />
-                  <textarea className="input" rows={2} placeholder="Ссылки на фото — каждая с новой строки" value={product.images.filter((image) => !image.startsWith('data:')).join('\n')} onChange={(e) => applyProductImageUrls(product.id, e.target.value)} />
-                  <label className="upload-box">
-                    <span>Добавить фото</span>
-                    <input type="file" accept="image/*" multiple onChange={(e) => uploadProductImages(product.id, e.target.files)} />
-                  </label>
-                  <div className="admin-gallery">
-                    {product.images.map((image, index) => (
-                      <div className="admin-photo square-media" key={image + index}>
-                        <img src={image} alt={product.title} />
-                        <button onClick={() => removeProductImage(product.id, index)}>×</button>
-                      </div>
-                    ))}
-                  </div>
-                  <input className="input" value={sizesToText(product.sizes)} onChange={(e) => updateProduct(product.id, { sizes: parseSizes(e.target.value) })} />
-                  <div className="stock-grid">
-                    {product.sizes.map((s) => (
-                      <label className="stock-badge" key={s.size}>
-                        <span>{s.size}</span>
-                        <input type="number" value={s.stock} onChange={(e) => updateSize(product.id, s.size, Number(e.target.value))} />
-                        <button type="button" onClick={() => removeSize(product.id, s.size)}>×</button>
-                      </label>
-                    ))}
-                  </div>
-                  <button className="btn light" onClick={() => addSize(product.id)}>+ Размер</button>
-                  <div className="row">
-                    <button className="btn light" onClick={() => updateProduct(product.id, { isPublished: !product.isPublished })}>
-                      {product.isPublished ? 'Скрыть' : 'Опубликовать'}
-                    </button>
-                    <button className="btn danger" onClick={() => deleteProduct(product.id)}>Удалить</button>
-                  </div>
+            <h2>Заказы</h2>
+            {orders.length === 0 && <div className="empty">Заказов пока нет</div>}
+            <div className="order-list">
+              {orders.map((order) => (
+                <div className="order-card" key={order.dbId || order.id}>
+                  <div className="row-between"><b>Заказ #{order.id}</b><span>{formatPrice(order.total)}</span></div>
+                  <p className="muted">{order.customerName} · {order.phone}</p>
+                  <p className="muted">{order.city} · {order.cdekPoint || 'ПВЗ не указан'}</p>
+                  {order.telegramUsername && <p className="muted">Telegram: @{order.telegramUsername}</p>}
+                  {order.items.map((item) => <p key={item.title + item.size}>{item.title}, размер {item.size} × {item.quantity}</p>)}
+                  <select className="input" value={order.status} onChange={(e) => updateOrder(order, { status: e.target.value as OrderStatus })}>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
+                  <input className="input" placeholder="Трек-номер СДЭК" value={order.trackNumber || ''} onChange={(e) => updateOrder(order, { trackNumber: e.target.value })} />
                 </div>
               ))}
             </div>
-            <button className="btn light full" onClick={() => { if (window.confirm('Вернуть стартовый каталог? Все локальные изменения товаров будут удалены.')) { resetProducts(); setProducts(getProducts()); } }}>Сбросить товары к стартовым</button>
           </section>
         )}
       </div>

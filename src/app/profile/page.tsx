@@ -2,16 +2,20 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { formatPrice, getOrders, getTelegramUser } from '@/lib/store';
+import { fetchOrders, formatPrice, getTelegramUser } from '@/lib/store';
 import type { Order } from '@/types';
 
 export default function ProfilePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    setOrders(getOrders());
-    setUser(getTelegramUser());
+    const telegramUser = getTelegramUser();
+    setUser(telegramUser);
+    fetchOrders(undefined, telegramUser?.id ? String(telegramUser.id) : undefined)
+      .then(setOrders)
+      .catch((err) => setError(err.message || 'Не удалось загрузить заказы'));
     const tg = (window as any).Telegram?.WebApp;
     tg?.ready?.();
   }, []);
@@ -25,10 +29,11 @@ export default function ProfilePage() {
           <b>{user?.first_name || 'Покупатель STUDIO 82'}</b>
           {user?.username && <p className="muted">@{user.username}</p>}
         </div>
-        {orders.length === 0 && <div className="empty">Заказов пока нет</div>}
+        {error && <p className="error-text">{error}</p>}
+        {orders.length === 0 && !error && <div className="empty">Заказов пока нет</div>}
         <div className="order-list">
           {orders.map((order) => (
-            <div className="order-card" key={order.id}>
+            <div className="order-card" key={order.dbId || order.id}>
               <div className="row-between"><b>Заказ #{order.id}</b><span className="badge">{order.status}</span></div>
               {order.items.map((item) => (
                 <p className="muted" key={item.title + item.size}>{item.title}, размер {item.size} × {item.quantity}</p>
