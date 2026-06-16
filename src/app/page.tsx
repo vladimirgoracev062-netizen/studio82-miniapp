@@ -37,11 +37,10 @@ export default function Home() {
           </Link>
         ))}
       </section>
-      <nav className="nav">
+      <nav className="nav nav-three">
         <Link href="/">Каталог</Link>
         <Link href="/cart">Корзина</Link>
         <Link href="/profile">Заказы</Link>
-        <Link href="/admin">Админ</Link>
       </nav>
     </main>
   );
