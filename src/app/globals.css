@@ -46,3 +46,40 @@ body{background:var(--studio-bg);color:var(--studio-text);font-family:'Helvetica
 .checkout-page,.admin-app{
   padding-bottom:24px;
 }
+
+/* Telegram iOS font fix v3
+   Avoids Arial Black inside Telegram WebView, where Cyrillic headings can look stretched. */
+html, body {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-synthesis: none;
+}
+
+:root {
+  --studio-display-font: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.catalog-hero h1,
+.studio-simple-page .title,
+.studio-product-page .title,
+.product-title-studio,
+.product-card-title,
+.product-card-price,
+.product-price-studio,
+.size-section h3,
+.studio-purchase-bar .purchase-primary,
+.studio-purchase-bar .purchase-secondary,
+.cta {
+  font-family: var(--studio-display-font) !important;
+  font-weight: 900 !important;
+  font-stretch: normal !important;
+  font-synthesis: none !important;
+  font-variation-settings: normal !important;
+  transform: none !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.catalog-hero h1 {
+  letter-spacing: -0.075em !important;
+}
