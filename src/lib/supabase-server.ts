@@ -179,6 +179,7 @@ export function orderFromRow(row: any): Order {
     phone: row.customer_phone || '',
     city: row.delivery_city || '',
     cdekPoint: row.delivery_point || row.delivery_address || '',
+    deliveryType: row.delivery_type || 'cdek_pickup',
     total: Number(row.total_amount || 0),
     status: (row.order_status || 'Новый') as OrderStatus,
     paymentStatus: row.payment_status || 'pending',

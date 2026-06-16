@@ -67,6 +67,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<AdminTab>('products');
   const [productQuery, setProductQuery] = useState('');
+  const [sizeDrafts, setSizeDrafts] = useState<Record<string, { size: string; stock: string }>>({});
 
   const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin82';
 
@@ -138,13 +139,32 @@ export default function AdminPage() {
     persistProduct(nextProduct);
   }
 
+  function setSizeDraft(productId: string, patch: Partial<{ size: string; stock: string }>) {
+    setSizeDrafts((current) => ({
+      ...current,
+      [productId]: { size: '', stock: '1', ...(current[productId] || {}), ...patch },
+    }));
+  }
+
   function addSize(productId: string) {
-    const size = window.prompt('Введите размер, например 42.5');
-    if (!size) return;
     const product = products.find((p) => p.id === productId);
     if (!product) return;
-    const nextProduct = { ...product, sizes: [...product.sizes, { size, stock: 0 }] };
+    const draftSize = (sizeDrafts[productId]?.size || '').trim().replace(',', '.');
+    const draftStock = Math.max(0, Number(sizeDrafts[productId]?.stock || 0) || 0);
+    if (!draftSize) {
+      setMessage('Введите размер');
+      return;
+    }
+    if (product.sizes.some((item) => item.size === draftSize)) {
+      setMessage('Такой размер уже есть');
+      return;
+    }
+    const nextProduct = {
+      ...product,
+      sizes: [...product.sizes, { size: draftSize, stock: draftStock }].sort((a, b) => Number(a.size) - Number(b.size)),
+    };
     setProducts(products.map((p) => (p.id === productId ? nextProduct : p)));
+    setSizeDrafts((current) => ({ ...current, [productId]: { size: '', stock: '1' } }));
     persistProduct(nextProduct);
   }
 
@@ -333,7 +353,11 @@ export default function AdminPage() {
                     <div className="admin-gallery">{product.images.map((image, index) => <div className="admin-photo square-media" key={image + index}><img src={image} alt="Фото" /><button onClick={() => removeProductImage(product.id, index)}>×</button></div>)}</div>
                     <label className="toggle-line"><input type="checkbox" checked={product.isPublished} onChange={(e) => updateProduct(product.id, { isPublished: e.target.checked })} /> <span>{product.isPublished ? 'Опубликован' : 'Скрыт'}</span></label>
                     <div className="sizes-admin">{product.sizes.map((size) => <label key={size.size}><span>{size.size}</span><input type="number" value={size.stock} onChange={(e) => updateSize(product.id, size.size, Number(e.target.value))} /><button onClick={() => removeSize(product.id, size.size)}>×</button></label>)}</div>
-                    <button className="btn light" onClick={() => addSize(product.id)}>Добавить размер</button>
+                    <div className="size-add-row">
+                      <input className="input" placeholder="Новый размер, например 42.5" value={sizeDrafts[product.id]?.size || ''} onChange={(e) => setSizeDraft(product.id, { size: e.target.value })} />
+                      <input className="input" type="number" placeholder="Остаток" value={sizeDrafts[product.id]?.stock || '1'} onChange={(e) => setSizeDraft(product.id, { stock: e.target.value })} />
+                      <button className="btn light" onClick={() => addSize(product.id)}>Добавить</button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -350,7 +374,7 @@ export default function AdminPage() {
                 <div className="order-card" key={order.dbId || order.id}>
                   <div className="row-between"><b>Заказ #{order.id}</b><span>{formatPrice(order.total)}</span></div>
                   <p className="muted">{order.customerName} · {order.phone}</p>
-                  <p className="muted">{order.city} · {order.cdekPoint || 'ПВЗ не указан'}</p>
+                  <p className="muted">{order.deliveryType === 'moscow' ? 'Доставка по Москве' : 'СДЭК'} · {order.city} · {order.cdekPoint || 'ПВЗ не указан'}</p>
                   {order.telegramUsername && <p className="muted">Telegram: @{order.telegramUsername}</p>}
                   {order.items.map((item) => <p key={item.title + item.size}>{item.title}, размер {item.size} × {item.quantity}</p>)}
                   <select className="input" value={order.status} onChange={(e) => updateOrder(order, { status: e.target.value as OrderStatus })}>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
