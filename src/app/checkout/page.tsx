@@ -72,19 +72,10 @@ export default function CheckoutPage() {
     setCart(getCart());
     fetchProducts().then(setProducts).catch(() => setProducts([]));
 
-    const user = getTelegramUser();
-    if (user?.first_name) {
-      setForm((current) => ({
-        ...current,
-        customerName: current.customerName || [user.first_name, user.last_name].filter(Boolean).join(' '),
-      }));
-    }
-
     fetchCustomerProfile().then((profile) => {
-      if (!profile) return;
+      if (!profile?.phone) return;
       setForm((current) => ({
         ...current,
-        customerName: current.customerName || [profile.firstName, profile.lastName].filter(Boolean).join(' '),
         phone: current.phone || profile.phone || '',
       }));
     }).catch(() => null);
@@ -122,7 +113,6 @@ export default function CheckoutPage() {
         if (profile?.phone) {
           setForm((current) => ({
             ...current,
-            customerName: current.customerName || [profile.firstName, profile.lastName].filter(Boolean).join(' '),
             phone: profile.phone,
           }));
           setContactMessage('Номер телефона добавлен из Telegram.');
