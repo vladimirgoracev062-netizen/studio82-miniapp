@@ -29,6 +29,7 @@ export function getCdekConfig() {
     senderAddress: (process.env.CDEK_SENDER_ADDRESS || 'Москва, улица Пришвина 26').trim(),
     senderName: (process.env.CDEK_SENDER_NAME || 'STUDIO 82').trim(),
     senderPhone: (process.env.CDEK_SENDER_PHONE || '').trim(),
+    shipmentPointCode: (process.env.CDEK_SHIPMENT_POINT_CODE || 'MSK1305').trim().toUpperCase(),
   };
 }
 

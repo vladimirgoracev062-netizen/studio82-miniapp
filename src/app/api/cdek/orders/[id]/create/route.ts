@@ -41,6 +41,7 @@ function buildPayload(order: any) {
   const phone = normalizeCdekPhone(order.customer_phone);
   if (!phone) throw new Error('У заказа нет телефона клиента');
   if (!config.senderPhone) throw new Error('Добавьте CDEK_SENDER_PHONE в Vercel для создания отправлений СДЭК');
+  if (!config.shipmentPointCode) throw new Error('Добавьте CDEK_SHIPMENT_POINT_CODE в Vercel — код ПВЗ, откуда вы сдаёте заказы');
   if (!order.cdek_city_code) throw new Error('У заказа нет города СДЭК');
   if (order.delivery_type !== 'cdek') throw new Error('Этот заказ не является доставкой СДЭК');
 
@@ -54,6 +55,7 @@ function buildPayload(order: any) {
     comment: 'STUDIO 82 Mini App',
     tariff_code: Number(order.cdek_tariff_code || (mode === 'courier' ? 137 : 136)),
     sender: {
+      company: 'STUDIO 82',
       name: config.senderName || 'STUDIO 82',
       phones: [{ number: normalizeCdekPhone(config.senderPhone) }],
     },
@@ -61,10 +63,9 @@ function buildPayload(order: any) {
       name: order.customer_name || 'Покупатель STUDIO 82',
       phones: [{ number: phone }],
     },
-    from_location: {
-      code: config.fromCityCode,
-      address: config.senderAddress,
-    },
+    // Для тарифов 136/137 магазин сдаёт посылку в конкретный ПВЗ СДЭК.
+    // Поэтому при создании отправления передаём shipment_point, а не только город/адрес отправки.
+    shipment_point: config.shipmentPointCode,
     to_location: {
       code: Number(order.cdek_city_code),
     },
@@ -142,6 +143,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const { data: updated } = await supabase.from('orders').select('*, order_items(*)').eq('id', params.id).single();
     return NextResponse.json({ ok: true, uuid, cdekNumber, order: orderFromRow(updated || { ...order, ...patch }) });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Не удалось создать отправление СДЭК' }, { status: 500 });
+    console.error('[cdek] create shipment failed', error);
+    return NextResponse.json({
+      error: error.message || 'Не удалось создать отправление СДЭК',
+      hint: 'Проверьте CDEK_SHIPMENT_POINT_CODE, CDEK_SENDER_PHONE, выбранный ПВЗ/адрес и данные клиента.',
+    }, { status: 500 });
   }
 }
