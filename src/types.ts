@@ -22,6 +22,35 @@ export type CartItem = {
   quantity: number;
 };
 
+export type CdekDeliveryMode = 'pickup' | 'courier';
+
+export type CdekCity = {
+  code: number;
+  city: string;
+  region?: string;
+  country?: string;
+};
+
+export type CdekDeliveryPoint = {
+  code: string;
+  name: string;
+  type?: string;
+  address: string;
+  workTime?: string;
+  note?: string;
+  nearestStation?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+export type CdekCalculationResult = {
+  deliverySum: number;
+  periodMin?: number | null;
+  periodMax?: number | null;
+  tariffCode?: number;
+  currency?: string;
+};
+
 export type OrderStatus =
   | 'Новый'
   | 'Оплачен'
@@ -41,7 +70,16 @@ export type Order = {
   phone: string;
   city: string;
   cdekPoint?: string;
-  deliveryType?: 'cdek_pickup' | 'moscow' | string;
+  deliveryType?: 'cdek' | 'cdek_pickup' | 'moscow' | string;
+  cdekDeliveryMode?: CdekDeliveryMode | string;
+  cdekCityCode?: number | null;
+  cdekPointCode?: string;
+  cdekPointAddress?: string;
+  cdekRecipientAddress?: string;
+  cdekDeliveryPrice?: number;
+  cdekTariffCode?: number | null;
+  cdekStatus?: string;
+  cdekStatusDescription?: string;
   total: number;
   status: OrderStatus;
   paymentStatus?: string;

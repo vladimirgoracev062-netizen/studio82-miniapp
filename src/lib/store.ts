@@ -180,7 +180,14 @@ export async function createOrderInDb(payload: {
   phone: string;
   city: string;
   cdekPoint?: string;
-  deliveryType?: 'cdek_pickup' | 'moscow' | string;
+  deliveryType?: 'cdek' | 'cdek_pickup' | 'moscow' | string;
+  cdekDeliveryMode?: 'pickup' | 'courier' | string;
+  cdekCityCode?: number | null;
+  cdekPointCode?: string;
+  cdekPointAddress?: string;
+  cdekRecipientAddress?: string;
+  cdekDeliveryPrice?: number;
+  cdekTariffCode?: number | null;
   telegramId?: string;
   telegramUsername?: string;
 }) {
@@ -297,4 +304,38 @@ export async function requestTelegramContact(): Promise<{ ok: boolean; status?: 
       finish({ ok: false, message: 'Не удалось запросить номер. Введите телефон вручную.' });
     }
   });
+}
+
+export async function searchCdekCities(query: string) {
+  const response = await fetch(`/api/cdek/cities?q=${encodeURIComponent(query)}`, { cache: 'no-store' });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось найти город СДЭК');
+  }
+  const data = await response.json();
+  return data.cities || [];
+}
+
+export async function fetchCdekDeliveryPoints(cityCode: number) {
+  const response = await fetch(`/api/cdek/delivery-points?cityCode=${encodeURIComponent(String(cityCode))}`, { cache: 'no-store' });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось загрузить ПВЗ СДЭК');
+  }
+  const data = await response.json();
+  return data.points || [];
+}
+
+export async function calculateCdekDelivery(payload: { mode: 'pickup' | 'courier'; cityCode: number; address?: string }) {
+  const response = await fetch('/api/cdek/calculate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось рассчитать доставку СДЭК');
+  }
+  const data = await response.json();
+  return data.result;
 }

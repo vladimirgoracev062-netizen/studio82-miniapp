@@ -39,6 +39,13 @@ export default function ProfilePage() {
               {order.items.map((item) => (
                 <p className="muted" key={item.title + item.size}>{item.title}, размер {item.size} × {item.quantity}</p>
               ))}
+              {order.deliveryType !== 'moscow' && (
+                <p className="muted">
+                  {order.cdekDeliveryMode === 'courier' ? 'СДЭК курьером' : 'СДЭК ПВЗ/постамат'} · {order.city}
+                  {order.cdekPoint ? ` · ${order.cdekPoint}` : ''}
+                </p>
+              )}
+              {order.cdekDeliveryPrice ? <p className="muted">Доставка СДЭК: {formatPrice(order.cdekDeliveryPrice)}</p> : null}
               <b>{formatPrice(order.total)}</b>
               {order.trackNumber && <p>Трек СДЭК: <b>{order.trackNumber}</b></p>}
               {order.trackNumber && <a className="btn light" href={`https://www.cdek.ru/ru/tracking?order_id=${order.trackNumber}`} target="_blank">Отследить</a>}

@@ -16,8 +16,9 @@ function formatRub(value: number) {
   return new Intl.NumberFormat('ru-RU').format(value || 0) + ' ₽';
 }
 
-function deliveryLabel(value?: string) {
+function deliveryLabel(value?: string, mode?: string) {
   if (value === 'moscow') return 'Доставка по Москве';
+  if (value === 'cdek' && mode === 'courier') return 'СДЭК / курьер';
   return 'СДЭК / ПВЗ';
 }
 
@@ -38,9 +39,10 @@ function buildAdminOrderText(order: ReturnType<typeof orderFromRow>, adminUrl: s
     order.telegramUsername ? `Telegram: @${order.telegramUsername}` : '',
     '',
     'Доставка:',
-    deliveryLabel(order.deliveryType),
+    deliveryLabel(order.deliveryType, order.cdekDeliveryMode),
     order.city ? `Город: ${order.city}` : '',
     order.cdekPoint ? `ПВЗ/адрес: ${order.cdekPoint}` : '',
+    order.cdekDeliveryPrice ? `Стоимость доставки: ${formatRub(order.cdekDeliveryPrice)}` : '',
     '',
     'Товары:',
     items,
@@ -151,25 +153,43 @@ export async function POST(request: Request) {
       };
     });
 
-    const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const goodsTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const deliveryPrice = Math.max(0, Number(body.cdekDeliveryPrice || 0));
+    const total = goodsTotal + (body.deliveryType === 'cdek' ? deliveryPrice : 0);
 
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        telegram_id: telegramUser.id,
-        telegram_username: telegramUser.username || body.telegramUsername || '',
-        customer_name: body.customerName || '',
-        customer_phone: body.phone || '',
-        delivery_city: body.city || '',
-        delivery_point: body.cdekPoint || '',
-        delivery_type: body.deliveryType || 'cdek_pickup',
-        payment_status: 'pending',
-        order_status: 'Новый',
-        total_amount: total,
-      })
-      .select('*')
-      .single();
-    if (orderError) throw orderError;
+    const baseOrderPayload = {
+      telegram_id: telegramUser.id,
+      telegram_username: telegramUser.username || body.telegramUsername || '',
+      customer_name: body.customerName || '',
+      customer_phone: body.phone || '',
+      delivery_city: body.city || '',
+      delivery_point: body.cdekPoint || '',
+      delivery_type: body.deliveryType || 'cdek',
+      payment_status: 'pending',
+      order_status: 'Новый',
+      total_amount: total,
+    };
+
+    const cdekOrderPayload = {
+      ...baseOrderPayload,
+      cdek_delivery_mode: body.cdekDeliveryMode || null,
+      cdek_city_code: body.cdekCityCode || null,
+      cdek_point_code: body.cdekPointCode || null,
+      cdek_point_address: body.cdekPointAddress || null,
+      cdek_recipient_address: body.cdekRecipientAddress || null,
+      cdek_delivery_price: body.deliveryType === 'cdek' ? deliveryPrice : 0,
+      cdek_tariff_code: body.cdekTariffCode || null,
+    };
+
+    let orderResult = await supabase.from('orders').insert(cdekOrderPayload).select('*').single();
+
+    if (orderResult.error && /cdek_|delivery_price|tariff/i.test(orderResult.error.message || '')) {
+      console.warn('[orders] CDEK columns are missing, retrying without optional fields. Run SQL migration for full CDEK support.', orderResult.error.message);
+      orderResult = await supabase.from('orders').insert(baseOrderPayload).select('*').single();
+    }
+
+    if (orderResult.error) throw orderResult.error;
+    const order = orderResult.data;
 
     const orderItems = items.map((item) => ({
       order_id: order.id,
