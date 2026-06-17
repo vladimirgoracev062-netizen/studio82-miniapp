@@ -287,6 +287,7 @@ export default function CheckoutPage() {
         cityCode: selectedCity.code,
         address: cdekMode === 'courier' ? form.courierAddress : selectedPoint?.address,
         packageQuantity: totalPairs,
+        declaredValue: goodsTotal,
       });
       setCdekResult(result);
       setCdekMessage('Стоимость доставки рассчитана.');

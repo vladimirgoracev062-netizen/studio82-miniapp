@@ -49,6 +49,8 @@ export type CdekCalculationResult = {
   deliveryBaseSum?: number;
   deliveryMarkup?: number;
   deliveryMarkupPerPair?: number;
+  declaredValue?: number;
+  declaredValueFee?: number;
   periodMin?: number | null;
   periodMax?: number | null;
   tariffCode?: number;
@@ -77,6 +79,7 @@ export type OrderStatus =
   | 'Новый'
   | 'Оплачен'
   | 'Собирается'
+  | 'Отправление создано'
   | 'Передан в СДЭК'
   | 'В пути'
   | 'Готов к выдаче'

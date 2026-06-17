@@ -11,6 +11,7 @@ export async function POST(request: Request) {
     const cityCode = Number(body.cityCode || 0);
     const address = String(body.address || '').trim();
     const pairCount = Math.max(1, Number(body.packageQuantity || body.pairCount || 1));
+    const declaredValue = Math.max(0, Math.round(Number(body.declaredValue || body.goodsTotal || 0)));
 
     if (!cityCode) return NextResponse.json({ error: 'Выберите город СДЭК' }, { status: 400 });
     if (mode === 'courier' && address.length < 5) return NextResponse.json({ error: 'Укажите адрес для курьерской доставки' }, { status: 400 });
@@ -31,6 +32,13 @@ export async function POST(request: Request) {
       })),
     };
 
+    // СДЭК отдельно добавляет сбор за объявленную стоимость/страхование.
+    // Передаём declaredValue в калькулятор как услугу INSURANCE, чтобы покупатель видел
+    // сумму, максимально близкую к той, которая потом спишется при создании отправления.
+    if (declaredValue > 0) {
+      payload.services = [{ code: 'INSURANCE', parameter: String(declaredValue) }];
+    }
+
     if (mode === 'courier') payload.to_location.address = address;
 
     const data = await cdekRequest('/v2/calculator/tariff', {
@@ -38,14 +46,34 @@ export async function POST(request: Request) {
       body: JSON.stringify(payload),
     });
 
-    const baseDeliverySum = Math.round(Number(data.delivery_sum || data.total_sum || 0));
+    const deliveryOnlySumRaw = Number(data.delivery_sum || 0);
+    const services = Array.isArray(data.services) ? data.services : [];
+    const servicesSumFromCdek = services.reduce((sum: number, service: any) => {
+      return sum + Number(service?.sum || service?.total_sum || service?.price || service?.cost || 0);
+    }, 0);
+    const fallbackDeclaredValueFee = declaredValue > 0 ? declaredValue * Number(config.declaredValueRate || 0.0075) : 0;
+
+    // Важно: в ЛК СДЭК суммы услуг часто отображаются как база + НДС.
+    // Калькулятор API отдаёт базу услуги и сборов, поэтому для совпадения с карточкой заказа
+    // прибавляем НДС СДЭК через CDEK_VAT_RATE. Это не ручная наценка магазина.
+    const totalWithoutVatRaw = Number(data.total_sum || 0)
+      || (deliveryOnlySumRaw + servicesSumFromCdek)
+      || (deliveryOnlySumRaw + fallbackDeclaredValueFee);
+    const vatRate = Math.max(0, Number(config.vatRate || 0));
+    const totalWithVatRaw = config.includeVat ? totalWithoutVatRaw * (1 + vatRate) : totalWithoutVatRaw;
+
+    const deliveryOnlySum = Math.ceil(deliveryOnlySumRaw);
+    const baseDeliverySum = Math.ceil(totalWithVatRaw);
+    const declaredValueFee = Math.max(0, Math.ceil((servicesSumFromCdek || fallbackDeclaredValueFee) * (config.includeVat ? 1 + vatRate : 1)));
     const deliveryMarkup = 0;
 
     return NextResponse.json({
       result: {
-        // deliverySum — финальная цена для покупателя. Она равна цене, которую вернул СДЭК API.
+        // deliverySum — финальная цена для покупателя: сумма СДЭК с учётом сборов и НДС, без наценки магазина.
         deliverySum: baseDeliverySum,
-        deliveryBaseSum: baseDeliverySum,
+        deliveryBaseSum: deliveryOnlySum || baseDeliverySum,
+        declaredValue,
+        declaredValueFee,
         deliveryMarkup,
         deliveryMarkupPerPair: Number(config.deliveryMarkupPerPair || 0),
         periodMin: data.period_min ?? null,

@@ -364,7 +364,7 @@ export async function fetchCdekDeliveryPoints(cityCode: number) {
   return data.points || [];
 }
 
-export async function calculateCdekDelivery(payload: { mode: 'pickup' | 'courier'; cityCode: number; address?: string; packageQuantity?: number }) {
+export async function calculateCdekDelivery(payload: { mode: 'pickup' | 'courier'; cityCode: number; address?: string; packageQuantity?: number; declaredValue?: number }) {
   const response = await fetch('/api/cdek/calculate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -9,30 +9,68 @@ function getOrderItemPairs(items: any[]) {
   return Math.max(1, items.reduce((sum, item) => sum + Math.max(1, Number(item.quantity || 1)), 0));
 }
 
+function getDeclaredValueForOrder(items: any[]) {
+  return Math.max(1, Math.round(items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0)));
+}
+
+function sanitizeWareKey(value: string, fallback: string) {
+  const cleaned = String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё._-]+/gi, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 90);
+  return cleaned || fallback;
+}
+
+function buildUnitItems(items: any[]) {
+  const unitItems: Array<{ name: string; wareKey: string; price: number }> = [];
+
+  items.forEach((item: any, itemIndex: number) => {
+    const quantity = Math.max(1, Number(item.quantity || 1));
+    const title = String(item.product_title || item.title || 'Кроссовки STUDIO 82').trim();
+    const size = String(item.size || '').trim();
+    const name = size ? `${title}, размер ${size}` : title;
+    const price = Math.max(1, Math.round(Number(item.price || 0)));
+
+    for (let copyIndex = 0; copyIndex < quantity; copyIndex += 1) {
+      const wareKey = sanitizeWareKey(`${title}-${size}-${itemIndex + 1}-${copyIndex + 1}`, `studio82-${itemIndex + 1}-${copyIndex + 1}`);
+      unitItems.push({ name, wareKey, price });
+    }
+  });
+
+  return unitItems.length ? unitItems : [{ name: 'Кроссовки STUDIO 82', wareKey: 'studio82-shoes', price: 1 }];
+}
+
 function buildCdekPackages(order: any, items: any[]) {
   const pairCount = Number(order.cdek_package_pair_count || getOrderItemPairs(items));
   const cdekPackage = getCdekPackageForPairs(pairCount);
-  const goodsTotal = Math.max(1, items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0));
-  const pricePerPair = Math.max(1, Math.round(goodsTotal / cdekPackage.pairCount));
+  const unitItems = buildUnitItems(items);
+  let cursor = 0;
 
-  return cdekPackage.boxes.map((box, index) => ({
-    number: String(index + 1),
-    comment: `STUDIO 82 ${box.type}`,
-    weight: box.weight,
-    length: box.length,
-    width: box.width,
-    height: box.height,
-    items: [
-      {
-        name: 'Кроссовки STUDIO 82',
-        ware_key: `studio82-shoes-${index + 1}`,
+  return cdekPackage.boxes.map((box, index) => {
+    const packageUnits = unitItems.slice(cursor, cursor + box.pairs);
+    cursor += box.pairs;
+    const units = packageUnits.length ? packageUnits : unitItems.slice(-1);
+    const unitWeight = Math.max(1, Math.round(box.weight / Math.max(1, units.length)));
+
+    return {
+      number: String(index + 1),
+      comment: `STUDIO 82 ${box.type}`,
+      weight: box.weight,
+      length: box.length,
+      width: box.width,
+      height: box.height,
+      items: units.map((unit) => ({
+        name: unit.name,
+        ware_key: unit.wareKey,
         payment: { value: 0 },
-        cost: pricePerPair,
-        weight: Math.max(1, Math.round(box.weight / Math.max(1, box.pairs))),
-        amount: box.pairs,
-      },
-    ],
-  }));
+        cost: unit.price,
+        weight: unitWeight,
+        amount: 1,
+      })),
+    };
+  });
 }
 
 function buildPayload(order: any) {
@@ -46,6 +84,7 @@ function buildPayload(order: any) {
   if (order.delivery_type !== 'cdek') throw new Error('Этот заказ не является доставкой СДЭК');
 
   const mode = order.cdek_delivery_mode === 'courier' ? 'courier' : 'pickup';
+  const declaredValue = getDeclaredValueForOrder(items);
   if (mode === 'pickup' && !order.cdek_point_code) throw new Error('У заказа не выбран ПВЗ/постамат СДЭК');
   if (mode === 'courier' && !order.cdek_recipient_address) throw new Error('У заказа нет адреса курьерской доставки');
 
@@ -67,6 +106,7 @@ function buildPayload(order: any) {
     // shipment_point — откуда сдаём, delivery_point или to_location — куда доставляем.
     shipment_point: config.shipmentPointCode,
     packages: buildCdekPackages(order, items),
+    services: declaredValue > 0 ? [{ code: 'INSURANCE', parameter: String(declaredValue) }] : undefined,
   };
 
   if (mode === 'pickup') {
@@ -99,7 +139,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       const patch = {
         cdek_tracking_number: info.cdekNumber || order.cdek_tracking_number || '',
         cdek_status: info.status.code || order.cdek_status || 'CREATED',
-        cdek_status_description: info.status.description || order.cdek_status_description || 'Создано в СДЭК',
+        cdek_status_description: info.status.description || order.cdek_status_description || 'Отправление создано, ожидает передачи в СДЭК',
         cdek_status_updated_at: new Date().toISOString(),
       };
       await supabase.from('orders').update(patch).eq('id', params.id);
@@ -121,7 +161,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     let cdekNumber = '';
     let statusCode = 'CREATED';
-    let statusDescription = 'Создано в СДЭК';
+    let statusDescription = 'Отправление создано, ожидает передачи в СДЭК';
 
     try {
       const info = await getCdekOrderInfo(uuid);
@@ -138,7 +178,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       cdek_status: statusCode,
       cdek_status_description: statusDescription,
       cdek_status_updated_at: new Date().toISOString(),
-      order_status: 'Передан в СДЭК',
+      order_status: 'Отправление создано',
     };
 
     const update = await supabase.from('orders').update(patch).eq('id', params.id);
