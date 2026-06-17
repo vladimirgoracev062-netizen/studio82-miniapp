@@ -13,13 +13,13 @@ function getDeclaredValueForOrder(items: any[]) {
   return Math.max(1, Math.round(items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0)));
 }
 
-function sanitizeWareKey(value: string, fallback: string) {
+function buildWareKey(value: string, fallback: string) {
+  // Это поле видно в ЛК СДЭК как «артикул». Поэтому не используем технические slug/заглушки
+  // вроде studio82-shoes-1, а передаём понятный текст: модель, цвет и размер.
   const cleaned = String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9а-яё._-]+/gi, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 90);
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
   return cleaned || fallback;
 }
 
@@ -34,12 +34,12 @@ function buildUnitItems(items: any[]) {
     const price = Math.max(1, Math.round(Number(item.price || 0)));
 
     for (let copyIndex = 0; copyIndex < quantity; copyIndex += 1) {
-      const wareKey = sanitizeWareKey(`${title}-${size}-${itemIndex + 1}-${copyIndex + 1}`, `studio82-${itemIndex + 1}-${copyIndex + 1}`);
+      const wareKey = buildWareKey(name, `STUDIO 82 ${itemIndex + 1}-${copyIndex + 1}`);
       unitItems.push({ name, wareKey, price });
     }
   });
 
-  return unitItems.length ? unitItems : [{ name: 'Кроссовки STUDIO 82', wareKey: 'studio82-shoes', price: 1 }];
+  return unitItems.length ? unitItems : [{ name: 'Кроссовки STUDIO 82', wareKey: 'Кроссовки STUDIO 82', price: 1 }];
 }
 
 function buildCdekPackages(order: any, items: any[]) {
