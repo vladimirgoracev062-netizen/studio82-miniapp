@@ -27,6 +27,8 @@ export function getCdekConfig() {
     packageHeight: Number(process.env.CDEK_PACKAGE_HEIGHT_CM || 15),
     deliveryMarkupPerPair: Number(process.env.CDEK_DELIVERY_MARKUP_PER_PAIR || 0),
     senderAddress: (process.env.CDEK_SENDER_ADDRESS || 'Москва, улица Пришвина 26').trim(),
+    senderName: (process.env.CDEK_SENDER_NAME || 'STUDIO 82').trim(),
+    senderPhone: (process.env.CDEK_SENDER_PHONE || '').trim(),
   };
 }
 
@@ -95,6 +97,8 @@ export async function cdekRequest(path: string, init: RequestInit = {}) {
 }
 
 export function getCdekTariffCode(mode: CdekDeliveryMode) {
+  // 136 — Посылка склад-склад, 137 — Посылка склад-дверь.
+  // Логика STUDIO 82: магазин сам сдаёт заказ в пункт СДЭК в Москве.
   return mode === 'courier' ? 137 : 136;
 }
 
@@ -166,4 +170,41 @@ export function getCdekPackageForPairs(pairCount = 1) {
 
 export function getDefaultCdekPackage() {
   return getCdekPackageForPairs(1);
+}
+
+export function normalizeCdekPhone(value?: string) {
+  const digits = String(value || '').replace(/\D+/g, '');
+  if (!digits) return '';
+  if (digits.length === 11 && digits.startsWith('8')) return `+7${digits.slice(1)}`;
+  if (digits.length === 11 && digits.startsWith('7')) return `+${digits}`;
+  if (digits.length === 10) return `+7${digits}`;
+  return `+${digits}`;
+}
+
+export function getLatestCdekStatus(entity: any) {
+  const statuses = Array.isArray(entity?.statuses) ? entity.statuses : [];
+  const latest = statuses[statuses.length - 1] || null;
+  const code = String(latest?.code || entity?.status?.code || '').trim();
+  const name = String(latest?.name || entity?.status?.name || '').trim();
+  const dateTime = latest?.date_time || latest?.dateTime || null;
+  return {
+    code,
+    name,
+    description: name || code || '',
+    dateTime,
+  };
+}
+
+export async function getCdekOrderInfo(uuid: string) {
+  if (!uuid) throw new Error('Не найден UUID заказа СДЭК');
+  const data = await cdekRequest(`/v2/orders/${encodeURIComponent(uuid)}`);
+  const entity = data?.entity || data;
+  const status = getLatestCdekStatus(entity);
+  return {
+    raw: data,
+    entity,
+    uuid: entity?.uuid || uuid,
+    cdekNumber: String(entity?.cdek_number || entity?.number || entity?.im_number || '').trim(),
+    status,
+  };
 }

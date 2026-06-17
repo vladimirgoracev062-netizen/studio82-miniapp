@@ -28,6 +28,7 @@ export async function GET(request: Request) {
       baseUrl: config.baseUrl,
       fromCityCode: config.fromCityCode,
       senderAddress: config.senderAddress,
+      hasSenderPhone: Boolean(config.senderPhone),
       deliveryMarkupPerPair: config.deliveryMarkupPerPair,
       onePairPackage: getCdekPackageForPairs(1),
       twoPairsPackage: getCdekPackageForPairs(2),

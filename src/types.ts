@@ -107,6 +107,7 @@ export type Order = {
   cdekPackageLength?: number;
   cdekPackageWidth?: number;
   cdekPackageHeight?: number;
+  cdekOrderUuid?: string;
   cdekStatus?: string;
   cdekStatusDescription?: string;
   total: number;

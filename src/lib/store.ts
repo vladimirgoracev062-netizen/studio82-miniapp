@@ -227,6 +227,36 @@ export async function updateOrderInDb(orderId: string, adminPassword: string, pa
   }
 }
 
+export async function createCdekShipmentInDb(orderId: string, adminPassword: string): Promise<Order> {
+  const response = await fetch(`/api/cdek/orders/${orderId}/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось создать отправление СДЭК');
+  }
+  const data = await response.json();
+  return data.order as Order;
+}
+
+export async function refreshCdekOrderStatus(orderId: string, adminPassword?: string): Promise<Order> {
+  const initData = getTelegramInitData();
+  const response = await fetch(`/api/cdek/orders/${orderId}/status`, {
+    cache: 'no-store',
+    headers: {
+      ...(adminPassword ? { 'x-admin-password': adminPassword } : {}),
+      ...(!adminPassword && initData ? { 'x-telegram-init-data': initData } : {}),
+    },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось обновить статус СДЭК');
+  }
+  const data = await response.json();
+  return data.order as Order;
+}
+
 // Legacy helpers for fallback/compatibility
 export function getProducts(): Product[] {
   return read<Product[]>(LEGACY_PRODUCTS_KEY, seedProducts);

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { fetchOrders, formatPrice, getTelegramInitData, getTelegramUser } from '@/lib/store';
+import { fetchOrders, formatPrice, getTelegramInitData, getTelegramUser, refreshCdekOrderStatus } from '@/lib/store';
 import type { Order } from '@/types';
 
 export default function ProfilePage() {
@@ -14,7 +14,17 @@ export default function ProfilePage() {
     const telegramUser = getTelegramUser();
     setUser(telegramUser);
     fetchOrders()
-      .then(setOrders)
+      .then(async (loadedOrders) => {
+        setOrders(loadedOrders);
+        const ordersWithCdek = loadedOrders.filter((order) => order.dbId && order.cdekOrderUuid);
+        if (!ordersWithCdek.length) return;
+
+        const refreshed = await Promise.all(
+          ordersWithCdek.map((order) => refreshCdekOrderStatus(order.dbId as string).catch(() => null)),
+        );
+        const refreshedMap = new Map(refreshed.filter(Boolean).map((order) => [(order as Order).dbId, order as Order]));
+        setOrders((current) => current.map((order) => refreshedMap.get(order.dbId) || order));
+      })
       .catch((err) => setError(err.message || 'Не удалось загрузить заказы'));
     const tg = (window as any).Telegram?.WebApp;
     tg?.ready?.();

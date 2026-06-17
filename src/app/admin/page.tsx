@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  createCdekShipmentInDb,
   createProductInDb,
   deleteProductFromDb,
   fetchOrders,
@@ -9,6 +10,7 @@ import {
   formatPrice,
   safeImage,
   saveProductToDb,
+  refreshCdekOrderStatus,
   updateOrderInDb,
   uploadImages,
 } from '@/lib/store';
@@ -352,6 +354,40 @@ export default function AdminPage() {
     }
   }
 
+  function replaceOrder(nextOrder: Order) {
+    setOrders((current) => current.map((item) => (item.dbId === nextOrder.dbId ? nextOrder : item)));
+  }
+
+  async function createCdekShipment(order: Order) {
+    if (!order.dbId) return;
+    try {
+      setSavingId(`cdek-create-${order.dbId}`);
+      setMessage('Создаём отправление в СДЭК...');
+      const nextOrder = await createCdekShipmentInDb(order.dbId, adminPassword);
+      replaceOrder(nextOrder);
+      setMessage(nextOrder.trackNumber ? `Отправление СДЭК создано: ${nextOrder.trackNumber}` : 'Отправление СДЭК создано. Номер может появиться после обновления статуса.');
+    } catch (err: any) {
+      setMessage(err.message || 'Не удалось создать отправление СДЭК');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function refreshCdekStatus(order: Order) {
+    if (!order.dbId) return;
+    try {
+      setSavingId(`cdek-status-${order.dbId}`);
+      setMessage('Обновляем статус СДЭК...');
+      const nextOrder = await refreshCdekOrderStatus(order.dbId, adminPassword);
+      replaceOrder(nextOrder);
+      setMessage('Статус СДЭК обновлён');
+    } catch (err: any) {
+      setMessage(err.message || 'Не удалось обновить статус СДЭК');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   if (!logged) {
     return (
       <main className="app">
@@ -510,11 +546,23 @@ export default function AdminPage() {
                   <p className="muted">{order.deliveryType === 'moscow' ? 'Доставка по Москве' : order.cdekDeliveryMode === 'courier' ? 'СДЭК курьером' : 'СДЭК ПВЗ/постамат'} · {order.city} · {order.cdekPoint || 'адрес не указан'}</p>
                   {order.cdekDeliveryPrice ? <p className="muted">Стоимость СДЭК: {formatPrice(order.cdekDeliveryPrice)}{order.cdekTariffCode ? ` · тариф ${order.cdekTariffCode}` : ''}</p> : null}
                   {order.cdekPackageHeight ? <p className="muted">Упаковка СДЭК: {order.cdekPackageType ? `${order.cdekPackageType} · ` : ''}{order.cdekPackageLength}×{order.cdekPackageWidth}×{order.cdekPackageHeight} см · {order.cdekPackageWeight} г</p> : null}
+                  {order.cdekOrderUuid ? <p className="muted">UUID СДЭК: {order.cdekOrderUuid}</p> : null}
+                  {order.trackNumber ? <p><b>Трек СДЭК: {order.trackNumber}</b></p> : null}
                   {order.cdekStatus ? <p className="muted">Статус СДЭК: {order.cdekStatusDescription || order.cdekStatus}</p> : null}
                   {order.telegramUsername && <p className="muted">Telegram: @{order.telegramUsername}</p>}
                   {order.items.map((item) => <p key={item.title + item.size}>{item.title}, размер {item.size} × {item.quantity}</p>)}
                   <select className="input" value={order.status} onChange={(e) => updateOrder(order, { status: e.target.value as OrderStatus })}>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
                   <input className="input" placeholder="Трек-номер СДЭК" value={order.trackNumber || ''} onChange={(e) => updateOrder(order, { trackNumber: e.target.value })} />
+                  {order.deliveryType === 'cdek' && (
+                    <div className="row">
+                      <button className="btn light" disabled={savingId === `cdek-create-${order.dbId}`} onClick={() => createCdekShipment(order)}>
+                        {order.cdekOrderUuid ? 'Отправление создано' : 'Создать отправление СДЭК'}
+                      </button>
+                      <button className="btn light" disabled={!order.cdekOrderUuid || savingId === `cdek-status-${order.dbId}`} onClick={() => refreshCdekStatus(order)}>
+                        Обновить статус СДЭК
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

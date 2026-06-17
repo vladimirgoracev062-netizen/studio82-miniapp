@@ -24,3 +24,9 @@ comment on column orders.cdek_package_pair_count is 'Количество пар
 comment on column orders.cdek_package_type is 'Тип упаковки СДЭК для расчёта: L, XL, XL×4 + L и т.п.';
 comment on column orders.cdek_package_box_count is 'Количество грузовых мест/коробов для расчёта СДЭК';
 comment on column orders.cdek_package_height is 'Высота основного короба СДЭК для расчёта';
+
+alter table orders add column if not exists cdek_number text;
+
+comment on column orders.cdek_order_uuid is 'UUID отправления СДЭК после создания через API';
+comment on column orders.cdek_number is 'Номер отправления СДЭК, если СДЭК вернул его отдельно';
+comment on column orders.cdek_tracking_number is 'Трек-номер/номер отправления СДЭК для клиента';
