@@ -28,8 +28,11 @@ export async function GET(request: Request) {
       baseUrl: config.baseUrl,
       fromCityCode: config.fromCityCode,
       senderAddress: config.senderAddress,
+      deliveryMarkupPerPair: config.deliveryMarkupPerPair,
       onePairPackage: getCdekPackageForPairs(1),
       twoPairsPackage: getCdekPackageForPairs(2),
+      threePairsPackage: getCdekPackageForPairs(3),
+      fivePairsPackage: getCdekPackageForPairs(5),
       sampleCity: Array.isArray(cities) ? cities[0] : null,
     });
   } catch (error: any) {

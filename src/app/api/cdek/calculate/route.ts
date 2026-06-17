@@ -22,12 +22,13 @@ export async function POST(request: Request) {
       tariff_code: tariffCode,
       from_location: { code: config.fromCityCode },
       to_location: { code: cityCode },
-      packages: [{
-        weight: cdekPackage.weight,
-        length: cdekPackage.length,
-        width: cdekPackage.width,
-        height: cdekPackage.height,
-      }],
+      packages: cdekPackage.boxes.map((box, index) => ({
+        number: String(index + 1),
+        weight: box.weight,
+        length: box.length,
+        width: box.width,
+        height: box.height,
+      })),
     };
 
     if (mode === 'courier') payload.to_location.address = address;
@@ -37,15 +38,26 @@ export async function POST(request: Request) {
       body: JSON.stringify(payload),
     });
 
+    const baseDeliverySum = Math.round(Number(data.delivery_sum || data.total_sum || 0));
+    const deliveryMarkup = Math.max(0, Math.round(Number(config.deliveryMarkupPerPair || 0) * cdekPackage.pairCount));
+
     return NextResponse.json({
       result: {
-        deliverySum: Math.round(Number(data.delivery_sum || data.total_sum || 0)),
+        // deliverySum — финальная цена для покупателя. По умолчанию равна цене СДЭК API.
+        deliverySum: baseDeliverySum + deliveryMarkup,
+        deliveryBaseSum: baseDeliverySum,
+        deliveryMarkup,
+        deliveryMarkupPerPair: Number(config.deliveryMarkupPerPair || 0),
         periodMin: data.period_min ?? null,
         periodMax: data.period_max ?? null,
         tariffCode,
         currency: data.currency || 'RUB',
         package: {
           pairCount: cdekPackage.pairCount,
+          packageType: cdekPackage.packageType,
+          boxCount: cdekPackage.boxCount,
+          boxSummary: cdekPackage.boxSummary,
+          boxes: cdekPackage.boxes,
           weight: cdekPackage.weight,
           length: cdekPackage.length,
           width: cdekPackage.width,

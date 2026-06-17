@@ -46,16 +46,30 @@ export type CdekDeliveryPoint = {
 
 export type CdekCalculationResult = {
   deliverySum: number;
+  deliveryBaseSum?: number;
+  deliveryMarkup?: number;
+  deliveryMarkupPerPair?: number;
   periodMin?: number | null;
   periodMax?: number | null;
   tariffCode?: number;
   currency?: string;
   package?: {
     pairCount: number;
+    packageType?: string;
+    boxCount?: number;
+    boxSummary?: string;
     weight: number;
     length: number;
     width: number;
     height: number;
+    boxes?: Array<{
+      type: 'L' | 'XL' | string;
+      pairs: number;
+      weight: number;
+      length: number;
+      width: number;
+      height: number;
+    }>;
   };
 };
 
@@ -87,6 +101,8 @@ export type Order = {
   cdekDeliveryPrice?: number;
   cdekTariffCode?: number | null;
   cdekPackagePairCount?: number;
+  cdekPackageType?: string;
+  cdekPackageBoxCount?: number;
   cdekPackageWeight?: number;
   cdekPackageLength?: number;
   cdekPackageWidth?: number;

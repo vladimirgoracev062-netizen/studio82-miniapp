@@ -180,6 +180,8 @@ export async function POST(request: Request) {
       cdek_delivery_price: body.deliveryType === 'cdek' ? deliveryPrice : 0,
       cdek_tariff_code: body.cdekTariffCode || null,
       cdek_package_pair_count: body.cdekPackagePairCount || null,
+      cdek_package_type: body.cdekPackageType || null,
+      cdek_package_box_count: body.cdekPackageBoxCount || null,
       cdek_package_weight: body.cdekPackageWeight || null,
       cdek_package_length: body.cdekPackageLength || null,
       cdek_package_width: body.cdekPackageWidth || null,
@@ -188,7 +190,7 @@ export async function POST(request: Request) {
 
     let orderResult = await supabase.from('orders').insert(cdekOrderPayload).select('*').single();
 
-    if (orderResult.error && /cdek_|delivery_price|tariff/i.test(orderResult.error.message || '')) {
+    if (orderResult.error && /cdek_|delivery_price|tariff|package/i.test(orderResult.error.message || '')) {
       console.warn('[orders] CDEK columns are missing, retrying without optional fields. Run SQL migration for full CDEK support.', orderResult.error.message);
       orderResult = await supabase.from('orders').insert(baseOrderPayload).select('*').single();
     }

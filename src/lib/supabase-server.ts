@@ -210,6 +210,8 @@ export function orderFromRow(row: any): Order {
     cdekDeliveryPrice: Number(row.cdek_delivery_price || 0),
     cdekTariffCode: row.cdek_tariff_code || null,
     cdekPackagePairCount: Number(row.cdek_package_pair_count || 0),
+    cdekPackageType: row.cdek_package_type || '',
+    cdekPackageBoxCount: Number(row.cdek_package_box_count || 0),
     cdekPackageWeight: Number(row.cdek_package_weight || 0),
     cdekPackageLength: Number(row.cdek_package_length || 0),
     cdekPackageWidth: Number(row.cdek_package_width || 0),

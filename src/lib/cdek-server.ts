@@ -21,10 +21,11 @@ export function getCdekConfig() {
     clientId: (process.env.CDEK_CLIENT_ID || '').trim(),
     clientSecret: (process.env.CDEK_CLIENT_SECRET || '').trim(),
     fromCityCode: Number(process.env.CDEK_FROM_CITY_CODE || 44),
-    packageWeight: Number(process.env.CDEK_PACKAGE_WEIGHT_GRAMS || 1200),
-    packageLength: Number(process.env.CDEK_PACKAGE_LENGTH_CM || 35),
-    packageWidth: Number(process.env.CDEK_PACKAGE_WIDTH_CM || 25),
+    packageWeight: Number(process.env.CDEK_PACKAGE_WEIGHT_GRAMS || 1500),
+    packageLength: Number(process.env.CDEK_PACKAGE_LENGTH_CM || 40),
+    packageWidth: Number(process.env.CDEK_PACKAGE_WIDTH_CM || 20),
     packageHeight: Number(process.env.CDEK_PACKAGE_HEIGHT_CM || 15),
+    deliveryMarkupPerPair: Number(process.env.CDEK_DELIVERY_MARKUP_PER_PAIR || 0),
     senderAddress: (process.env.CDEK_SENDER_ADDRESS || 'Москва, улица Пришвина 26').trim(),
   };
 }
@@ -97,16 +98,69 @@ export function getCdekTariffCode(mode: CdekDeliveryMode) {
   return mode === 'courier' ? 137 : 136;
 }
 
-export function getCdekPackageForPairs(pairCount = 1) {
+type CdekBox = {
+  type: 'L' | 'XL';
+  pairs: number;
+  weight: number;
+  length: number;
+  width: number;
+  height: number;
+};
+
+const CDEK_BOXES = {
+  L: { type: 'L' as const, length: 31, width: 25, height: 38, maxPairs: 1 },
+  XL: { type: 'XL' as const, length: 60, width: 35, height: 30, maxPairs: 4 },
+};
+
+function getWeightPerPair() {
   const config = getCdekConfig();
-  const quantity = Math.max(1, Math.min(10, Math.ceil(Number(pairCount) || 1)));
+  return Math.max(1000, Number(config.packageWeight || 1500));
+}
+
+function boxFor(type: 'L' | 'XL', pairs: number): CdekBox {
+  const box = CDEK_BOXES[type];
+  return {
+    type,
+    pairs,
+    weight: getWeightPerPair() * pairs,
+    length: box.length,
+    width: box.width,
+    height: box.height,
+  };
+}
+
+export function getCdekPackageForPairs(pairCount = 1) {
+  const quantity = Math.max(1, Math.min(20, Math.ceil(Number(pairCount) || 1)));
+  const boxes: CdekBox[] = [];
+  let remaining = quantity;
+
+  while (remaining > 0) {
+    if (remaining === 1) {
+      boxes.push(boxFor('L', 1));
+      remaining -= 1;
+    } else {
+      const pairsInBox = Math.min(4, remaining);
+      boxes.push(boxFor('XL', pairsInBox));
+      remaining -= pairsInBox;
+    }
+  }
+
+  const totalWeight = boxes.reduce((sum, box) => sum + box.weight, 0);
+  const primaryBox = boxes[0];
+  const packageType = boxes.map((box) => `${box.type}${box.pairs > 1 ? `×${box.pairs}` : ''}`).join(' + ');
+  const boxSummary = boxes.map((box) => `${box.type}: ${box.length}×${box.width}×${box.height} см, ${box.weight} г`).join('; ');
 
   return {
-    weight: config.packageWeight * quantity,
-    length: config.packageLength,
-    width: config.packageWidth,
-    height: config.packageHeight * quantity,
     pairCount: quantity,
+    packageType,
+    boxCount: boxes.length,
+    totalWeight,
+    weight: totalWeight,
+    length: primaryBox.length,
+    width: primaryBox.width,
+    height: primaryBox.height,
+    boxes,
+    boxSummary,
   };
 }
 

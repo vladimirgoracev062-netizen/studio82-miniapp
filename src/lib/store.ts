@@ -189,6 +189,8 @@ export async function createOrderInDb(payload: {
   cdekDeliveryPrice?: number;
   cdekTariffCode?: number | null;
   cdekPackagePairCount?: number;
+  cdekPackageType?: string;
+  cdekPackageBoxCount?: number;
   cdekPackageWeight?: number;
   cdekPackageLength?: number;
   cdekPackageWidth?: number;

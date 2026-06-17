@@ -86,6 +86,9 @@ function pointTypeLabel(point?: CdekDeliveryPoint | null) {
 function packageText(result?: CdekCalculationResult | null) {
   if (!result?.package) return '';
   const box = result.package;
+  if (box.boxSummary) {
+    return `${box.pairCount} ${box.pairCount === 1 ? 'пара' : box.pairCount < 5 ? 'пары' : 'пар'} · короб ${box.packageType || ''} · ${box.boxSummary}`;
+  }
   return `${box.pairCount} ${box.pairCount === 1 ? 'пара' : box.pairCount < 5 ? 'пары' : 'пар'} · ${box.length}×${box.width}×${box.height} см · ${box.weight} г`;
 }
 
@@ -95,6 +98,7 @@ export default function CheckoutPage() {
   const [cdekMode, setCdekMode] = useState<CdekDeliveryMode>('pickup');
   const [selectedCity, setSelectedCity] = useState<CdekCity | null>(null);
   const [cityResults, setCityResults] = useState<CdekCity[]>([]);
+  const [citySearching, setCitySearching] = useState(false);
   const [points, setPoints] = useState<CdekDeliveryPoint[]>([]);
   const [pointFilter, setPointFilter] = useState<'pvz' | 'postamat'>('pvz');
   const [pointQuery, setPointQuery] = useState('');
@@ -122,6 +126,36 @@ export default function CheckoutPage() {
       }));
     }).catch(() => null);
   }, []);
+
+  useEffect(() => {
+    const query = form.city.trim();
+
+    if (deliveryType !== 'cdek' || selectedCity || query.length < 2) {
+      if (query.length < 2) setCityResults([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        setCitySearching(true);
+        const cities = await searchCdekCities(query);
+        if (cancelled) return;
+        setCityResults(cities);
+        if (!cities.length) setCdekMessage('Город не найден. Попробуйте написать иначе или только первые буквы города.');
+        else setCdekMessage('');
+      } catch {
+        if (!cancelled) setCdekMessage('Не удалось найти город. Попробуйте ещё раз.');
+      } finally {
+        if (!cancelled) setCitySearching(false);
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [form.city, deliveryType, selectedCity]);
 
   const items = useMemo(() => cart.map((item) => {
     const product = products.find((p) => p.id === item.productId);
@@ -174,7 +208,7 @@ export default function CheckoutPage() {
   async function findCities() {
     try {
       setCdekMessage('');
-      setCdekLoading(true);
+      setCitySearching(true);
       setSelectedCity(null);
       setSelectedPoint(null);
       setPointQuery('');
@@ -186,7 +220,7 @@ export default function CheckoutPage() {
     } catch (err: any) {
       setCdekMessage(err.message || 'Не удалось найти город');
     } finally {
-      setCdekLoading(false);
+      setCitySearching(false);
     }
   }
 
@@ -323,6 +357,8 @@ export default function CheckoutPage() {
         cdekDeliveryPrice: deliveryPrice,
         cdekTariffCode: cdekResult?.tariffCode || null,
         cdekPackagePairCount: cdekResult?.package?.pairCount || totalPairs,
+        cdekPackageType: cdekResult?.package?.packageType || '',
+        cdekPackageBoxCount: cdekResult?.package?.boxCount || undefined,
         cdekPackageWeight: cdekResult?.package?.weight || undefined,
         cdekPackageLength: cdekResult?.package?.length || undefined,
         cdekPackageWidth: cdekResult?.package?.width || undefined,
@@ -397,7 +433,7 @@ export default function CheckoutPage() {
           <div className="row-between"><span>Товары</span><b>{formatPrice(goodsTotal)}</b></div>
           {deliveryType === 'cdek' && cdekResult?.deliverySum ? <div className="row-between"><span>Доставка СДЭК</span><b>{formatPrice(cdekResult.deliverySum)}</b></div> : null}
           <div className="row-between checkout-total"><span>Итого</span><b>{formatPrice(total)}</b></div>
-          {deliveryType === 'cdek' && <p className="muted cdek-package-note">Расчёт СДЭК: {totalPairs} {totalPairs === 1 ? 'пара' : totalPairs < 5 ? 'пары' : 'пар'} обуви. Отправка: Москва, ул. Пришвина, 26.</p>}
+          {deliveryType === 'cdek' && <p className="muted cdek-package-note">Расчёт СДЭК: {totalPairs} {totalPairs === 1 ? 'пара' : totalPairs < 5 ? 'пары' : 'пар'} обуви. Отправка: Москва, ул. Пришвина, 26. Цена доставки берётся напрямую из СДЭК API без ручной наценки.</p>}
         </div>
 
         <div className="delivery-options">
@@ -420,8 +456,8 @@ export default function CheckoutPage() {
             </div>
 
             <div className="row cdek-search-row">
-              <input className="input" placeholder="Город" value={form.city} onChange={(e) => { setForm({ ...form, city: e.target.value }); setSelectedCity(null); setSelectedPoint(null); setPoints([]); resetCdekCalculation(); }} />
-              <button className="btn light" type="button" disabled={cdekLoading || form.city.trim().length < 2} onClick={findCities}>Найти</button>
+              <input className="input" placeholder="Город доставки: Ростов, Казань, Феодосия" value={form.city} onChange={(e) => { setForm({ ...form, city: e.target.value }); setSelectedCity(null); setSelectedPoint(null); setPoints([]); resetCdekCalculation(); }} />
+              <button className="btn light" type="button" disabled={citySearching || form.city.trim().length < 2} onClick={findCities}>{citySearching ? 'Ищем...' : 'Найти'}</button>
             </div>
 
             {cityResults.length > 0 && (
@@ -477,6 +513,7 @@ export default function CheckoutPage() {
             {cdekResult && (
               <div className="cdek-result">
                 <div className="row-between"><span>Доставка</span><b>{formatPrice(cdekResult.deliverySum)}</b></div>
+                {cdekResult.deliveryBaseSum ? <p className="muted">Цена от СДЭК API: {formatPrice(cdekResult.deliveryBaseSum)}{cdekResult.deliveryMarkup ? ` + ${formatPrice(cdekResult.deliveryMarkup)}` : ''}</p> : null}
                 {deliveryPeriod(cdekResult) && <p className="muted">Срок: {deliveryPeriod(cdekResult)}</p>}
                 {packageText(cdekResult) && <p className="muted">Габариты расчёта: {packageText(cdekResult)}</p>}
               </div>
