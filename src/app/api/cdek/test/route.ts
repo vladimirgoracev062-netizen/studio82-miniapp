@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cdekRequest, getCdekConfig, hasCdekCredentials } from '@/lib/cdek-server';
+import { cdekRequest, getCdekConfig, getCdekPackageForPairs, hasCdekCredentials } from '@/lib/cdek-server';
 import { ADMIN_PASSWORD } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +23,15 @@ export async function GET(request: Request) {
     params.set('size', '1');
     const cities = await cdekRequest(`/v2/location/cities?${params.toString()}`);
 
-    return NextResponse.json({ ok: true, baseUrl: config.baseUrl, fromCityCode: config.fromCityCode, sampleCity: Array.isArray(cities) ? cities[0] : null });
+    return NextResponse.json({
+      ok: true,
+      baseUrl: config.baseUrl,
+      fromCityCode: config.fromCityCode,
+      senderAddress: config.senderAddress,
+      onePairPackage: getCdekPackageForPairs(1),
+      twoPairsPackage: getCdekPackageForPairs(2),
+      sampleCity: Array.isArray(cities) ? cities[0] : null,
+    });
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error.message || 'CDEK test failed' }, { status: 500 });
   }

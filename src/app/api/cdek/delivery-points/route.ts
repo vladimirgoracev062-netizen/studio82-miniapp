@@ -15,17 +15,29 @@ export async function GET(request: Request) {
     params.set('is_handout', 'true');
 
     const data = await cdekRequest(`/v2/deliverypoints?${params.toString()}`);
-    const points = (Array.isArray(data) ? data : []).map((item: any) => ({
-      code: item.code || '',
-      name: item.name || item.code || 'ПВЗ СДЭК',
-      type: item.type || '',
-      address: item.location?.address || item.address || '',
-      workTime: item.work_time || '',
-      note: item.note || '',
-      nearestStation: item.nearest_station || '',
-      latitude: item.location?.latitude || null,
-      longitude: item.location?.longitude || null,
-    })).filter((item: any) => item.code && item.address).slice(0, 40);
+    const points = (Array.isArray(data) ? data : []).map((item: any) => {
+      const type = String(item.type || '').toUpperCase();
+      const rawName = item.name || item.code || 'Пункт СДЭК';
+      const pointType = type.includes('POST') || /постамат/i.test(rawName) ? 'postamat' : 'pvz';
+
+      return {
+        code: item.code || '',
+        name: rawName,
+        type,
+        pointType,
+        address: item.location?.address || item.address || '',
+        workTime: item.work_time || '',
+        note: item.note || '',
+        nearestStation: item.nearest_station || '',
+        latitude: item.location?.latitude || null,
+        longitude: item.location?.longitude || null,
+      };
+    }).filter((item: any) => item.code && item.address).slice(0, 250);
+
+    points.sort((a: any, b: any) => {
+      if (a.pointType !== b.pointType) return a.pointType === 'pvz' ? -1 : 1;
+      return String(a.address).localeCompare(String(b.address), 'ru');
+    });
 
     return NextResponse.json({ points });
   } catch (error: any) {

@@ -25,6 +25,7 @@ export function getCdekConfig() {
     packageLength: Number(process.env.CDEK_PACKAGE_LENGTH_CM || 35),
     packageWidth: Number(process.env.CDEK_PACKAGE_WIDTH_CM || 25),
     packageHeight: Number(process.env.CDEK_PACKAGE_HEIGHT_CM || 15),
+    senderAddress: (process.env.CDEK_SENDER_ADDRESS || 'Москва, улица Пришвина 26').trim(),
   };
 }
 
@@ -96,12 +97,19 @@ export function getCdekTariffCode(mode: CdekDeliveryMode) {
   return mode === 'courier' ? 137 : 136;
 }
 
-export function getDefaultCdekPackage() {
+export function getCdekPackageForPairs(pairCount = 1) {
   const config = getCdekConfig();
+  const quantity = Math.max(1, Math.min(10, Math.ceil(Number(pairCount) || 1)));
+
   return {
-    weight: config.packageWeight,
+    weight: config.packageWeight * quantity,
     length: config.packageLength,
     width: config.packageWidth,
-    height: config.packageHeight,
+    height: config.packageHeight * quantity,
+    pairCount: quantity,
   };
+}
+
+export function getDefaultCdekPackage() {
+  return getCdekPackageForPairs(1);
 }

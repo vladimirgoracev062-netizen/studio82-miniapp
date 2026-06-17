@@ -35,6 +35,7 @@ export type CdekDeliveryPoint = {
   code: string;
   name: string;
   type?: string;
+  pointType?: 'pvz' | 'postamat' | string;
   address: string;
   workTime?: string;
   note?: string;
@@ -49,6 +50,13 @@ export type CdekCalculationResult = {
   periodMax?: number | null;
   tariffCode?: number;
   currency?: string;
+  package?: {
+    pairCount: number;
+    weight: number;
+    length: number;
+    width: number;
+    height: number;
+  };
 };
 
 export type OrderStatus =
@@ -78,6 +86,11 @@ export type Order = {
   cdekRecipientAddress?: string;
   cdekDeliveryPrice?: number;
   cdekTariffCode?: number | null;
+  cdekPackagePairCount?: number;
+  cdekPackageWeight?: number;
+  cdekPackageLength?: number;
+  cdekPackageWidth?: number;
+  cdekPackageHeight?: number;
   cdekStatus?: string;
   cdekStatusDescription?: string;
   total: number;

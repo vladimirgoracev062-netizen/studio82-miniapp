@@ -509,6 +509,8 @@ export default function AdminPage() {
                   <p className="muted">{order.customerName} · {order.phone}</p>
                   <p className="muted">{order.deliveryType === 'moscow' ? 'Доставка по Москве' : order.cdekDeliveryMode === 'courier' ? 'СДЭК курьером' : 'СДЭК ПВЗ/постамат'} · {order.city} · {order.cdekPoint || 'адрес не указан'}</p>
                   {order.cdekDeliveryPrice ? <p className="muted">Стоимость СДЭК: {formatPrice(order.cdekDeliveryPrice)}{order.cdekTariffCode ? ` · тариф ${order.cdekTariffCode}` : ''}</p> : null}
+                  {order.cdekPackageHeight ? <p className="muted">Габариты СДЭК: {order.cdekPackageLength}×{order.cdekPackageWidth}×{order.cdekPackageHeight} см · {order.cdekPackageWeight} г</p> : null}
+                  {order.cdekStatus ? <p className="muted">Статус СДЭК: {order.cdekStatusDescription || order.cdekStatus}</p> : null}
                   {order.telegramUsername && <p className="muted">Telegram: @{order.telegramUsername}</p>}
                   {order.items.map((item) => <p key={item.title + item.size}>{item.title}, размер {item.size} × {item.quantity}</p>)}
                   <select className="input" value={order.status} onChange={(e) => updateOrder(order, { status: e.target.value as OrderStatus })}>{statuses.map((status) => <option key={status}>{status}</option>)}</select>

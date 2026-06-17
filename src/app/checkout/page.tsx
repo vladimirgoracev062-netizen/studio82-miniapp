@@ -79,6 +79,16 @@ function deliveryPeriod(result?: CdekCalculationResult | null) {
   return `${result.periodMin || '?'}–${result.periodMax || '?'} дн.`;
 }
 
+function pointTypeLabel(point?: CdekDeliveryPoint | null) {
+  return point?.pointType === 'postamat' ? 'Постамат' : 'ПВЗ';
+}
+
+function packageText(result?: CdekCalculationResult | null) {
+  if (!result?.package) return '';
+  const box = result.package;
+  return `${box.pairCount} ${box.pairCount === 1 ? 'пара' : box.pairCount < 5 ? 'пары' : 'пар'} · ${box.length}×${box.width}×${box.height} см · ${box.weight} г`;
+}
+
 export default function CheckoutPage() {
   const [form, setForm] = useState({ customerName: '', phone: '', city: '', cdekPoint: '', courierAddress: '' });
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('cdek');
@@ -86,6 +96,8 @@ export default function CheckoutPage() {
   const [selectedCity, setSelectedCity] = useState<CdekCity | null>(null);
   const [cityResults, setCityResults] = useState<CdekCity[]>([]);
   const [points, setPoints] = useState<CdekDeliveryPoint[]>([]);
+  const [pointFilter, setPointFilter] = useState<'pvz' | 'postamat'>('pvz');
+  const [pointQuery, setPointQuery] = useState('');
   const [selectedPoint, setSelectedPoint] = useState<CdekDeliveryPoint | null>(null);
   const [cdekResult, setCdekResult] = useState<CdekCalculationResult | null>(null);
   const [cdekLoading, setCdekLoading] = useState(false);
@@ -117,8 +129,25 @@ export default function CheckoutPage() {
   }), [cart, products]);
 
   const goodsTotal = useMemo(() => items.reduce((sum, item) => sum + item.price * item.quantity, 0), [items]);
+  const totalPairs = useMemo(() => Math.max(1, items.reduce((sum, item) => sum + item.quantity, 0)), [items]);
   const deliveryPrice = deliveryType === 'cdek' ? Number(cdekResult?.deliverySum || 0) : 0;
   const total = goodsTotal + deliveryPrice;
+
+  const filteredPoints = useMemo(() => {
+    const normalized = pointQuery.trim().toLowerCase();
+    return points
+      .filter((point) => (point.pointType || 'pvz') === pointFilter)
+      .filter((point) => {
+        if (!normalized) return true;
+        return `${point.name} ${point.address} ${point.nearestStation || ''}`.toLowerCase().includes(normalized);
+      })
+      .slice(0, 80);
+  }, [points, pointFilter, pointQuery]);
+
+  const pointCounts = useMemo(() => ({
+    pvz: points.filter((point) => (point.pointType || 'pvz') === 'pvz').length,
+    postamat: points.filter((point) => point.pointType === 'postamat').length,
+  }), [points]);
 
   function resetCdekCalculation() {
     setCdekResult(null);
@@ -136,6 +165,8 @@ export default function CheckoutPage() {
   function selectCdekMode(mode: CdekDeliveryMode) {
     setCdekMode(mode);
     setSelectedPoint(null);
+    setPointFilter('pvz');
+    setPointQuery('');
     setForm((current) => ({ ...current, cdekPoint: '', courierAddress: '' }));
     resetCdekCalculation();
   }
@@ -146,6 +177,7 @@ export default function CheckoutPage() {
       setCdekLoading(true);
       setSelectedCity(null);
       setSelectedPoint(null);
+      setPointQuery('');
       setPoints([]);
       resetCdekCalculation();
       const cities = await searchCdekCities(form.city);
@@ -162,6 +194,7 @@ export default function CheckoutPage() {
     setSelectedCity(city);
     setCityResults([]);
     setSelectedPoint(null);
+    setPointQuery('');
     setPoints([]);
     setForm((current) => ({ ...current, city: cityLabel(city), cdekPoint: '' }));
     resetCdekCalculation();
@@ -171,7 +204,7 @@ export default function CheckoutPage() {
         setCdekLoading(true);
         const data = await fetchCdekDeliveryPoints(city.code);
         setPoints(data);
-        if (!data.length) setCdekMessage('В этом городе ПВЗ не найдены. Можно выбрать курьерскую доставку.');
+        if (!data.length) setCdekMessage('В этом городе ПВЗ и постаматы не найдены. Можно выбрать курьерскую доставку.');
       } catch (err: any) {
         setCdekMessage(err.message || 'Не удалось загрузить ПВЗ');
       } finally {
@@ -199,6 +232,7 @@ export default function CheckoutPage() {
         mode: cdekMode,
         cityCode: selectedCity.code,
         address: cdekMode === 'courier' ? form.courierAddress : selectedPoint?.address,
+        packageQuantity: totalPairs,
       });
       setCdekResult(result);
       setCdekMessage('Стоимость доставки рассчитана.');
@@ -288,6 +322,11 @@ export default function CheckoutPage() {
         cdekRecipientAddress,
         cdekDeliveryPrice: deliveryPrice,
         cdekTariffCode: cdekResult?.tariffCode || null,
+        cdekPackagePairCount: cdekResult?.package?.pairCount || totalPairs,
+        cdekPackageWeight: cdekResult?.package?.weight || undefined,
+        cdekPackageLength: cdekResult?.package?.length || undefined,
+        cdekPackageWidth: cdekResult?.package?.width || undefined,
+        cdekPackageHeight: cdekResult?.package?.height || undefined,
         telegramId: user?.id ? String(user.id) : '',
         telegramUsername: user?.username || '',
       });
@@ -320,6 +359,7 @@ export default function CheckoutPage() {
               <p key={`${item.title}-${item.size}`}>{item.title}, размер {item.size} × {item.quantity}</p>
             ))}
             {success.order.cdekDeliveryPrice ? <p className="muted">Доставка СДЭК: {formatPrice(success.order.cdekDeliveryPrice)}</p> : null}
+            {success.order.cdekPackageHeight ? <p className="muted">Габариты: {success.order.cdekPackageLength}×{success.order.cdekPackageWidth}×{success.order.cdekPackageHeight} см · {success.order.cdekPackageWeight} г</p> : null}
           </div>
 
           {success.order.deliveryType === 'moscow' ? (
@@ -357,6 +397,7 @@ export default function CheckoutPage() {
           <div className="row-between"><span>Товары</span><b>{formatPrice(goodsTotal)}</b></div>
           {deliveryType === 'cdek' && cdekResult?.deliverySum ? <div className="row-between"><span>Доставка СДЭК</span><b>{formatPrice(cdekResult.deliverySum)}</b></div> : null}
           <div className="row-between checkout-total"><span>Итого</span><b>{formatPrice(total)}</b></div>
+          {deliveryType === 'cdek' && <p className="muted cdek-package-note">Расчёт СДЭК: {totalPairs} {totalPairs === 1 ? 'пара' : totalPairs < 5 ? 'пары' : 'пар'} обуви. Отправка: Москва, ул. Пришвина, 26.</p>}
         </div>
 
         <div className="delivery-options">
@@ -400,11 +441,23 @@ export default function CheckoutPage() {
               <>
                 {cdekLoading && <p className="muted">Загружаем ПВЗ...</p>}
                 {points.length > 0 && (
+                  <div className="cdek-pickup-tools">
+                    <div className="cdek-mode-grid cdek-point-tabs">
+                      <button className={`chip ${pointFilter === 'pvz' ? 'active' : ''}`} type="button" onClick={() => { setPointFilter('pvz'); setSelectedPoint(null); resetCdekCalculation(); }}>ПВЗ ({pointCounts.pvz})</button>
+                      <button className={`chip ${pointFilter === 'postamat' ? 'active' : ''}`} type="button" onClick={() => { setPointFilter('postamat'); setSelectedPoint(null); resetCdekCalculation(); }}>Постаматы ({pointCounts.postamat})</button>
+                    </div>
+                    <input className="input" placeholder="Поиск по улице, адресу или метро" value={pointQuery} onChange={(e) => { setPointQuery(e.target.value); setSelectedPoint(null); resetCdekCalculation(); }} />
+                    <p className="muted cdek-small-note">Показываем до 80 ближайших совпадений. Сначала выберите тип, потом можно искать улицу.</p>
+                  </div>
+                )}
+                {points.length > 0 && filteredPoints.length === 0 && <p className="muted">По этому запросу ничего не найдено. Попробуйте другую улицу.</p>}
+                {filteredPoints.length > 0 && (
                   <div className="cdek-list cdek-points-list">
-                    {points.map((point) => (
+                    {filteredPoints.map((point) => (
                       <button className={selectedPoint?.code === point.code ? 'active' : ''} type="button" key={point.code} onClick={() => choosePoint(point)}>
-                        <b>{point.name}</b>
+                        <b>{pointTypeLabel(point)} · {point.name}</b>
                         <span>{point.address}</span>
+                        {point.nearestStation && <small>Рядом: {point.nearestStation}</small>}
                         {point.workTime && <small>{point.workTime}</small>}
                       </button>
                     ))}
@@ -425,6 +478,7 @@ export default function CheckoutPage() {
               <div className="cdek-result">
                 <div className="row-between"><span>Доставка</span><b>{formatPrice(cdekResult.deliverySum)}</b></div>
                 {deliveryPeriod(cdekResult) && <p className="muted">Срок: {deliveryPeriod(cdekResult)}</p>}
+                {packageText(cdekResult) && <p className="muted">Габариты расчёта: {packageText(cdekResult)}</p>}
               </div>
             )}
             {cdekMessage && <p className={cdekResult ? 'success-text' : 'error-text'}>{cdekMessage}</p>}

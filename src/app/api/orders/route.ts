@@ -179,6 +179,11 @@ export async function POST(request: Request) {
       cdek_recipient_address: body.cdekRecipientAddress || null,
       cdek_delivery_price: body.deliveryType === 'cdek' ? deliveryPrice : 0,
       cdek_tariff_code: body.cdekTariffCode || null,
+      cdek_package_pair_count: body.cdekPackagePairCount || null,
+      cdek_package_weight: body.cdekPackageWeight || null,
+      cdek_package_length: body.cdekPackageLength || null,
+      cdek_package_width: body.cdekPackageWidth || null,
+      cdek_package_height: body.cdekPackageHeight || null,
     };
 
     let orderResult = await supabase.from('orders').insert(cdekOrderPayload).select('*').single();
