@@ -30,3 +30,11 @@ alter table orders add column if not exists cdek_number text;
 comment on column orders.cdek_order_uuid is 'UUID отправления СДЭК после создания через API';
 comment on column orders.cdek_number is 'Номер отправления СДЭК, если СДЭК вернул его отдельно';
 comment on column orders.cdek_tracking_number is 'Трек-номер/номер отправления СДЭК для клиента';
+
+-- YooKassa payment fields
+alter table orders add column if not exists yookassa_payment_url text;
+alter table orders add column if not exists paid_at timestamptz;
+
+comment on column orders.yookassa_payment_id is 'ID платежа ЮKassa';
+comment on column orders.yookassa_payment_url is 'Ссылка на оплату ЮKassa для незавершённого платежа';
+comment on column orders.paid_at is 'Дата и время успешной оплаты';

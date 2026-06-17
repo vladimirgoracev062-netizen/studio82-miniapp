@@ -241,6 +241,44 @@ export async function createCdekShipmentInDb(orderId: string, adminPassword: str
   return data.order as Order;
 }
 
+
+export async function createYookassaPayment(orderId: string, adminPassword?: string): Promise<{ confirmationUrl?: string; paymentId?: string; order?: Order; paid?: boolean }> {
+  const initData = getTelegramInitData();
+  const response = await fetch('/api/yookassa/pay', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(adminPassword ? { 'x-admin-password': adminPassword } : {}),
+      ...(!adminPassword && initData ? { 'x-telegram-init-data': initData } : {}),
+    },
+    body: JSON.stringify({ orderId, telegramInitData: initData }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось создать платеж ЮKassa');
+  }
+  return response.json();
+}
+
+export async function checkYookassaPayment(orderId: string, adminPassword?: string): Promise<Order> {
+  const initData = getTelegramInitData();
+  const response = await fetch('/api/yookassa/check', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(adminPassword ? { 'x-admin-password': adminPassword } : {}),
+      ...(!adminPassword && initData ? { 'x-telegram-init-data': initData } : {}),
+    },
+    body: JSON.stringify({ orderId, telegramInitData: initData }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Не удалось проверить оплату ЮKassa');
+  }
+  const data = await response.json();
+  return data.order as Order;
+}
+
 export async function refreshCdekOrderStatus(orderId: string, adminPassword?: string): Promise<Order> {
   const initData = getTelegramInitData();
   const response = await fetch(`/api/cdek/orders/${orderId}/status`, {

@@ -116,6 +116,9 @@ export type Order = {
   total: number;
   status: OrderStatus;
   paymentStatus?: string;
+  yookassaPaymentId?: string;
+  paymentUrl?: string;
+  paidAt?: string;
   trackNumber?: string;
   items: Array<{ title: string; size: string; price: number; quantity: number }>;
 };

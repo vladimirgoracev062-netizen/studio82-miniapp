@@ -544,6 +544,8 @@ export default function AdminPage() {
                   <div className="row-between"><b>Заказ #{order.id}</b><span>{formatPrice(order.total)}</span></div>
                   <p className="muted">{order.customerName} · {order.phone}</p>
                   <p className="muted">{order.deliveryType === 'moscow' ? 'Доставка по Москве' : order.cdekDeliveryMode === 'courier' ? 'СДЭК курьером' : 'СДЭК ПВЗ/постамат'} · {order.city} · {order.cdekPoint || 'адрес не указан'}</p>
+                  <p className={order.paymentStatus === 'paid' ? 'success-text' : 'muted'}>Оплата: {order.paymentStatus === 'paid' ? 'оплачено' : order.paymentStatus === 'canceled' ? 'отменена' : 'ожидает оплаты'}</p>
+                  {order.paidAt ? <p className="muted">Оплачено: {new Date(order.paidAt).toLocaleString('ru-RU')}</p> : null}
                   {order.cdekDeliveryPrice ? <p className="muted">Стоимость СДЭК: {formatPrice(order.cdekDeliveryPrice)}{order.cdekTariffCode ? ` · тариф ${order.cdekTariffCode}` : ''}</p> : null}
                   {order.cdekPackageHeight ? <p className="muted">Упаковка СДЭК: {order.cdekPackageType ? `${order.cdekPackageType} · ` : ''}{order.cdekPackageLength}×{order.cdekPackageWidth}×{order.cdekPackageHeight} см · {order.cdekPackageWeight} г</p> : null}
                   {order.cdekOrderUuid ? <p className="muted">UUID СДЭК: {order.cdekOrderUuid}</p> : null}

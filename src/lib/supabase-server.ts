@@ -222,6 +222,9 @@ export function orderFromRow(row: any): Order {
     total: Number(row.total_amount || 0),
     status: (row.order_status || 'Новый') as OrderStatus,
     paymentStatus: row.payment_status || 'pending',
+    yookassaPaymentId: row.yookassa_payment_id || '',
+    paymentUrl: row.yookassa_payment_url || '',
+    paidAt: row.paid_at || '',
     trackNumber: row.cdek_tracking_number || row.cdek_number || '',
     items: (row.order_items || []).map((item: any) => ({
       title: item.product_title,

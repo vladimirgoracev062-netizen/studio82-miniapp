@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   calculateCdekDelivery,
   createOrderInDb,
+  createYookassaPayment,
   fetchCdekDeliveryPoints,
   fetchCustomerProfile,
   fetchProducts,
@@ -133,6 +134,8 @@ export default function CheckoutPage() {
   const [contactLoading, setContactLoading] = useState(false);
   const [contactMessage, setContactMessage] = useState('');
   const [success, setSuccess] = useState<{ order: Order; directMessage: string; copied: boolean } | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState('');
 
   useEffect(() => {
     setCart(getCart());
@@ -337,6 +340,30 @@ export default function CheckoutPage() {
     setSuccess((current) => current ? { ...current, copied } : current);
   }
 
+  async function startPayment(order: Order) {
+    try {
+      if (!order.dbId) throw new Error('Не найден ID заказа для оплаты');
+      setPaymentMessage('');
+      setPaymentLoading(true);
+      const result = await createYookassaPayment(order.dbId);
+      if (result.order) {
+        setSuccess((current) => current ? { ...current, order: result.order as Order } : current);
+      }
+      if (result.paid) {
+        setPaymentMessage('Заказ уже оплачен.');
+        return;
+      }
+      if (!result.confirmationUrl) throw new Error('ЮKassa не вернула ссылку на оплату');
+      const tg = (window as any).Telegram?.WebApp;
+      if (tg?.openLink) tg.openLink(result.confirmationUrl);
+      else window.location.href = result.confirmationUrl;
+    } catch (err: any) {
+      setPaymentMessage(err.message || 'Не удалось открыть оплату');
+    } finally {
+      setPaymentLoading(false);
+    }
+  }
+
   async function submit() {
     try {
       setError('');
@@ -392,11 +419,7 @@ export default function CheckoutPage() {
 
       const directMessage = deliveryType === 'moscow' ? buildOrderMessage(order) : '';
       setSuccess({ order, directMessage, copied: false });
-
-      if (directMessage) {
-        const copied = await copyText(directMessage);
-        setSuccess((current) => current ? { ...current, copied } : current);
-      }
+      setPaymentMessage('Заказ создан. Теперь его нужно оплатить.');
     } catch (err: any) {
       setError(err.message || 'Не удалось создать заказ');
     } finally {
@@ -418,11 +441,23 @@ export default function CheckoutPage() {
             {success.order.cdekDeliveryPrice ? <p className="muted">Доставка СДЭК: {formatPrice(success.order.cdekDeliveryPrice)}</p> : null}
           </div>
 
-          {success.order.deliveryType === 'moscow' ? (
+          {success.order.paymentStatus !== 'paid' && (
+            <div className="direct-box payment-box">
+              <b>Ожидает оплаты</b>
+              <p className="muted">Оплатите заказ через ЮKassa. После успешной оплаты заказ появится как оплаченный в разделе «Заказы».</p>
+              {paymentMessage && <p className={paymentMessage.toLowerCase().includes('ош') || paymentMessage.includes('Не') ? 'error-text' : 'success-text'}>{paymentMessage}</p>}
+              <button className="btn full" disabled={paymentLoading} onClick={() => startPayment(success.order)}>
+                {paymentLoading ? 'Открываем оплату...' : 'Оплатить через ЮKassa'}
+              </button>
+              <Link className="btn light" href="/profile">Перейти к заказам</Link>
+            </div>
+          )}
+
+          {success.order.paymentStatus === 'paid' && success.order.deliveryType === 'moscow' && (
             <div className="direct-box">
-              <b>Доставка по Москве</b>
+              <b>Заказ оплачен. Доставка по Москве</b>
               <p className="muted">
-                Мы подготовили текст заказа для менеджера. {success.copied ? 'Сообщение уже скопировано — откройте чат и вставьте его.' : 'Скопируйте сообщение и отправьте его менеджеру.'}
+                Мы подготовили текст для менеджера. {success.copied ? 'Сообщение уже скопировано — откройте чат и вставьте его.' : 'Скопируйте сообщение и отправьте его менеджеру.'}
               </p>
               <textarea className="input prepared-message" readOnly value={success.directMessage} rows={10} />
               <div className="row direct-actions">
@@ -430,9 +465,11 @@ export default function CheckoutPage() {
                 <button className="btn" onClick={openDirect}>Открыть @studio82direct</button>
               </div>
             </div>
-          ) : (
+          )}
+
+          {success.order.paymentStatus === 'paid' && success.order.deliveryType !== 'moscow' && (
             <div className="direct-box">
-              <b>Заказ принят</b>
+              <b>Заказ оплачен</b>
               <p className="muted">Доставка СДЭК сохранена в заказе. Статус можно посмотреть в разделе «Заказы».</p>
               <Link className="btn" href="/profile">Перейти к заказам</Link>
             </div>
@@ -462,7 +499,7 @@ export default function CheckoutPage() {
           </button>
           <button className={`delivery-option ${deliveryType === 'moscow' ? 'active' : ''}`} onClick={() => selectDelivery('moscow')}>
             <b>Доставка по Москве</b>
-            <span className="muted">После создания заказа приложение подготовит сообщение для @studio82direct.</span>
+            <span className="muted">Сначала оплатите заказ. После оплаты откроется возможность написать менеджеру для согласования курьера.</span>
           </button>
         </div>
 
