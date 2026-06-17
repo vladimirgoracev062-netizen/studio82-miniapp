@@ -22,6 +22,26 @@ function deliveryLabel(value?: string, mode?: string) {
   return 'СДЭК / ПВЗ';
 }
 
+
+function cleanText(value?: string) {
+  return (value || '').trim();
+}
+
+function normalizeTitlePart(value?: string) {
+  return cleanText(value).toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/gi, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function productOrderTitle(product: any) {
+  const brand = cleanText(product?.brand);
+  const model = cleanText(product?.model || product?.title || product?.name || 'Товар');
+  const color = cleanText(product?.color);
+  const modelNorm = normalizeTitlePart(model);
+  const colorNorm = normalizeTitlePart(color);
+  const parts = [brand, model];
+  if (color && colorNorm && !modelNorm.includes(colorNorm)) parts.push(color);
+  return parts.filter(Boolean).join(' ');
+}
+
 function buildAdminOrderText(order: ReturnType<typeof orderFromRow>, adminUrl: string) {
   const items = order.items
     .map((item) => `• ${item.title}\n  Размер: ${item.size}\n  Количество: ${item.quantity}\n  Цена: ${formatRub(item.price)}`)
@@ -146,7 +166,7 @@ export async function POST(request: Request) {
       return {
         product,
         productId: item.productId,
-        title: [product.model, product.color].filter(Boolean).join(' '),
+        title: productOrderTitle(product),
         size: item.size,
         price: Number(product.price || 0),
         quantity: Number(item.quantity || 1),

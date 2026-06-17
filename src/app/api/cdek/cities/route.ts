@@ -5,13 +5,26 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 type RawCity = any;
+type City = ReturnType<typeof mapCity>;
+
+type CityCache = {
+  cities: City[];
+  loadedAt: number;
+  loading?: Promise<City[]>;
+};
+
+const cityCache: CityCache = {
+  cities: [],
+  loadedAt: 0,
+};
+
+const CITY_CACHE_TTL = 12 * 60 * 60 * 1000;
 
 function normalize(value: string) {
   return value
     .toLowerCase()
     .replace(/ё/g, 'е')
-    .replace(/[‐‑‒–—-]/g, ' ')
-    .replace(/[.,()]/g, ' ')
+    .replace(/[^a-zа-я0-9]+/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -28,49 +41,67 @@ function titleCaseRu(value: string) {
     .join(' ');
 }
 
-function buildCityQueries(query: string) {
+function uniq<T>(items: T[]) {
+  return Array.from(new Set(items));
+}
+
+function queryAliases(query: string) {
   const raw = query.trim();
   const normalized = normalize(raw);
+  const key = compact(raw);
   const words = normalized.split(' ').filter(Boolean);
-  const variants = new Set<string>();
+  const aliases = new Set<string>();
 
-  if (raw) variants.add(raw);
-  if (normalized) variants.add(normalized);
-  if (normalized) variants.add(titleCaseRu(normalized));
-
-  // Ростов на дону -> Ростов-на-дону. Это помогает городам с дефисами.
+  if (raw) aliases.add(raw);
+  if (normalized) aliases.add(normalized);
+  if (normalized) aliases.add(titleCaseRu(normalized));
   if (words.length > 1) {
-    variants.add(words.join('-'));
-    variants.add(titleCaseRu(words.join('-')));
+    aliases.add(words.join('-'));
+    aliases.add(titleCaseRu(words.join('-')));
+  }
+  if (words[0]?.length >= 3) {
+    aliases.add(words[0]);
+    aliases.add(titleCaseRu(words[0]));
   }
 
-  // Ростов-на-Дону / Ростов на дону -> Ростов. Так СДЭК возвращает список вариантов.
-  if (words[0] && words[0].length >= 3) {
-    variants.add(words[0]);
-    variants.add(titleCaseRu(words[0]));
-  }
-
-  // Частые пользовательские написания.
   const aliasMap: Record<string, string[]> = {
-    'ростов надону': ['Ростов-на-Дону', 'Ростов'],
-    'ростов на дону': ['Ростов-на-Дону', 'Ростов'],
+    // Частые города с дефисами / пробелами / народными названиями.
+    'ростов': ['Ростов-на-Дону', 'Ростов'],
     'ростовнадону': ['Ростов-на-Дону', 'Ростов'],
-    'санкт петербург': ['Санкт-Петербург', 'Петербург'],
+    'ростовнадон': ['Ростов-на-Дону'],
+    'ростовдон': ['Ростов-на-Дону'],
+    'ростовдонy': ['Ростов-на-Дону'],
+    'ростовна': ['Ростов-на-Дону'],
+    'санкт': ['Санкт-Петербург'],
     'санктпетербург': ['Санкт-Петербург', 'Петербург'],
-    'нижний новгород': ['Нижний Новгород'],
-    'великий новгород': ['Великий Новгород'],
-    'набережные челны': ['Набережные Челны'],
-    'йошкар ола': ['Йошкар-Ола'],
+    'петербург': ['Санкт-Петербург'],
+    'спб': ['Санкт-Петербург'],
+    'sankt': ['Санкт-Петербург'],
+    'spb': ['Санкт-Петербург'],
+    'piter': ['Санкт-Петербург'],
+    'питер': ['Санкт-Петербург'],
+    'нижний': ['Нижний Новгород', 'Нижний Тагил'],
+    'нижнийновгород': ['Нижний Новгород'],
+    'великийновгород': ['Великий Новгород'],
+    'набережныечелны': ['Набережные Челны'],
     'йошкарола': ['Йошкар-Ола'],
-    'усть кут': ['Усть-Кут'],
     'устькут': ['Усть-Кут'],
+    'устьилимск': ['Усть-Илимск'],
+    'ореховозуево': ['Орехово-Зуево'],
+    'комсомольскнаамуре': ['Комсомольск-на-Амуре'],
+    'южносахалинск': ['Южно-Сахалинск'],
+    'каменскуральский': ['Каменск-Уральский'],
+    'ленинсккузнецкий': ['Ленинск-Кузнецкий'],
+    'старыйоскол': ['Старый Оскол'],
+    'новыйуренгой': ['Новый Уренгой'],
+    'великиелуки': ['Великие Луки'],
+    'минводы': ['Минеральные Воды'],
+    'минеральныеводы': ['Минеральные Воды'],
   };
 
-  const aliasKey = compact(raw);
-  const aliasKeySpaced = normalized;
-  (aliasMap[aliasKey] || aliasMap[aliasKeySpaced] || []).forEach((item) => variants.add(item));
+  (aliasMap[key] || aliasMap[normalized] || []).forEach((item) => aliases.add(item));
 
-  return Array.from(variants).filter((item) => item.length >= 2).slice(0, 8);
+  return Array.from(aliases).filter((item) => item.length >= 2);
 }
 
 function mapCity(item: RawCity) {
@@ -82,25 +113,35 @@ function mapCity(item: RawCity) {
   };
 }
 
-function scoreCity(city: ReturnType<typeof mapCity>, query: string) {
+function scoreCity(city: City, query: string) {
   const q = normalize(query);
   const qCompact = compact(query);
+  const qWords = q.split(' ').filter(Boolean);
+  const firstWord = qWords[0] || q;
   const cityName = normalize(city.city || '');
   const cityCompact = compact(city.city || '');
   const full = normalize(`${city.city || ''} ${city.region || ''}`);
   const fullCompact = compact(`${city.city || ''} ${city.region || ''}`);
+  const aliases = queryAliases(query).map((item) => compact(item));
 
   let score = 0;
-  if (cityCompact === qCompact) score += 1000;
-  if (cityName === q) score += 900;
-  if (cityName.startsWith(q)) score += 500;
-  if (cityCompact.startsWith(qCompact)) score += 450;
-  if (full.includes(q)) score += 300;
-  if (fullCompact.includes(qCompact)) score += 250;
-  if (cityName.includes(q.split(' ')[0] || q)) score += 100;
 
-  // Ростов-на-Дону чаще нужен пользователям, чем Ростов в Ярославской области.
-  if (qCompact.includes('ростов') && cityCompact === 'ростовнадону') score += 700;
+  if (aliases.includes(cityCompact)) score += 1600;
+  if (cityCompact === qCompact) score += 1400;
+  if (cityName === q) score += 1200;
+  if (cityName.startsWith(q)) score += 900;
+  if (cityCompact.startsWith(qCompact)) score += 850;
+  if (qWords.length > 1 && qWords.every((word) => full.includes(word))) score += 750;
+  if (full.includes(q)) score += 650;
+  if (fullCompact.includes(qCompact)) score += 600;
+  if (firstWord.length >= 3 && cityName.startsWith(firstWord)) score += 500;
+  if (firstWord.length >= 3 && cityName.includes(firstWord)) score += 320;
+  if (firstWord.length >= 3 && full.includes(firstWord)) score += 180;
+
+  // Частые неоднозначные запросы: выше показываем крупный город, который обычно ищет клиент.
+  if (qCompact.includes('ростов') && cityCompact === 'ростовнадону') score += 1200;
+  if ((qCompact === 'спб' || qCompact.includes('питер') || qCompact.includes('петербург') || qCompact.includes('санкт')) && cityCompact === 'санктпетербург') score += 1200;
+  if (qCompact === 'новгород' && cityCompact === 'нижнийновгород') score += 400;
 
   return score;
 }
@@ -109,9 +150,66 @@ async function fetchCitiesByQuery(query: string) {
   const params = new URLSearchParams();
   params.set('city', query);
   params.set('country_codes', 'RU');
-  params.set('size', '30');
+  params.set('size', '50');
   const data = await cdekRequest(`/v2/location/cities?${params.toString()}`);
   return Array.isArray(data) ? data : [];
+}
+
+async function fetchAllRussianCities() {
+  const now = Date.now();
+  if (cityCache.cities.length && now - cityCache.loadedAt < CITY_CACHE_TTL) return cityCache.cities;
+  if (cityCache.loading) return cityCache.loading;
+
+  cityCache.loading = (async () => {
+    const byCode = new Map<number, City>();
+    const pageSize = 1000;
+
+    // СДЭК поддерживает выдачу списка городов через location/cities. Забираем пачками и ищем локально,
+    // чтобы не зависеть от дефисов и точного написания пользователя.
+    for (let page = 0; page < 20; page += 1) {
+      const params = new URLSearchParams();
+      params.set('country_codes', 'RU');
+      params.set('size', String(pageSize));
+      params.set('page', String(page));
+      const data = await cdekRequest(`/v2/location/cities?${params.toString()}`).catch(() => []);
+      if (!Array.isArray(data) || !data.length) break;
+
+      data.map(mapCity).forEach((city) => {
+        if (city.code && city.city) byCode.set(city.code, city);
+      });
+
+      if (data.length < pageSize) break;
+    }
+
+    const cities = Array.from(byCode.values());
+    if (cities.length) {
+      cityCache.cities = cities;
+      cityCache.loadedAt = Date.now();
+    }
+    cityCache.loading = undefined;
+    return cities;
+  })();
+
+  try {
+    return await cityCache.loading;
+  } catch (error) {
+    cityCache.loading = undefined;
+    return cityCache.cities;
+  }
+}
+
+function normalizeResults(items: RawCity[], query: string) {
+  const byCode = new Map<number, City>();
+  items.map(mapCity).forEach((city) => {
+    if (city.code && city.city) byCode.set(city.code, city);
+  });
+
+  return Array.from(byCode.values())
+    .map((city) => ({ ...city, score: scoreCity(city, query) }))
+    .filter((city) => city.score > 0)
+    .sort((a, b) => b.score - a.score || String(a.city).localeCompare(String(b.city), 'ru'))
+    .slice(0, 30)
+    .map(({ score, ...city }) => city);
 }
 
 export async function GET(request: Request) {
@@ -120,23 +218,26 @@ export async function GET(request: Request) {
     const query = (url.searchParams.get('q') || '').trim();
     if (query.length < 2) return NextResponse.json({ cities: [] });
 
-    const variants = buildCityQueries(query);
-    const rawResults = (await Promise.allSettled(variants.map(fetchCitiesByQuery)))
-      .flatMap((result) => result.status === 'fulfilled' ? result.value : []);
+    const allCities = await fetchAllRussianCities();
+    let cities = normalizeResults(allCities, query);
 
-    const byCode = new Map<number, ReturnType<typeof mapCity>>();
-    rawResults.map(mapCity).forEach((city) => {
-      if (city.code && city.city) byCode.set(city.code, city);
-    });
+    // Если полный список по какой-то причине не загрузился или даёт мало результатов,
+    // дополнительно спрашиваем СДЭК по нескольким вариантам написания.
+    if (cities.length < 5) {
+      const variants = queryAliases(query).slice(0, 12);
+      const rawResults = (await Promise.allSettled(variants.map(fetchCitiesByQuery)))
+        .flatMap((result) => result.status === 'fulfilled' ? result.value : []);
+      const fallback = normalizeResults(rawResults, query);
+      const merged = new Map<number, City>();
+      [...cities, ...fallback].forEach((city) => merged.set(city.code, city));
+      cities = Array.from(merged.values())
+        .map((city) => ({ ...city, score: scoreCity(city, query) }))
+        .sort((a, b) => b.score - a.score || String(a.city).localeCompare(String(b.city), 'ru'))
+        .slice(0, 30)
+        .map(({ score, ...city }) => city);
+    }
 
-    const cities = Array.from(byCode.values())
-      .map((city) => ({ ...city, score: scoreCity(city, query) }))
-      .filter((city) => city.score > 0 || normalize(city.city).includes(normalize(query).split(' ')[0] || normalize(query)))
-      .sort((a, b) => b.score - a.score || String(a.city).localeCompare(String(b.city), 'ru'))
-      .slice(0, 20)
-      .map(({ score, ...city }) => city);
-
-    return NextResponse.json({ cities, query, variants });
+    return NextResponse.json({ cities, query });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Не удалось найти город СДЭК' }, { status: 500 });
   }

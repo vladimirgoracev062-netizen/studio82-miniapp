@@ -92,6 +92,26 @@ function packageText(result?: CdekCalculationResult | null) {
   return `${box.pairCount} ${box.pairCount === 1 ? 'пара' : box.pairCount < 5 ? 'пары' : 'пар'} · ${box.length}×${box.width}×${box.height} см · ${box.weight} г`;
 }
 
+function cleanText(value?: string) {
+  return (value || '').trim();
+}
+
+function normalizeTitlePart(value?: string) {
+  return cleanText(value).toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/gi, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function productOrderTitle(product?: Product) {
+  if (!product) return 'Товар';
+  const brand = cleanText(product.brand);
+  const model = cleanText(product.title || product.name);
+  const color = cleanText(product.color);
+  const modelNorm = normalizeTitlePart(model);
+  const colorNorm = normalizeTitlePart(color);
+  const parts = [brand, model];
+  if (color && colorNorm && !modelNorm.includes(colorNorm)) parts.push(color);
+  return parts.filter(Boolean).join(' ');
+}
+
 export default function CheckoutPage() {
   const [form, setForm] = useState({ customerName: '', phone: '', city: '', cdekPoint: '', courierAddress: '' });
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('cdek');
@@ -159,7 +179,7 @@ export default function CheckoutPage() {
 
   const items = useMemo(() => cart.map((item) => {
     const product = products.find((p) => p.id === item.productId);
-    return { title: [product?.title || product?.name || 'Товар', product?.color || ''].filter(Boolean).join(' '), size: item.size, price: product?.price || 0, quantity: item.quantity };
+    return { title: productOrderTitle(product), size: item.size, price: product?.price || 0, quantity: item.quantity };
   }), [cart, products]);
 
   const goodsTotal = useMemo(() => items.reduce((sum, item) => sum + item.price * item.quantity, 0), [items]);
