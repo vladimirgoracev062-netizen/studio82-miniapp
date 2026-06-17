@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cdekRequest, getCdekConfig, getCdekOrderInfo, getCdekPackageForPairs, normalizeCdekPhone } from '@/lib/cdek-server';
+import { cdekRequest, getCdekConfig, getCdekErrorMessage, getCdekOrderInfo, getCdekPackageForPairs, normalizeCdekPhone } from '@/lib/cdek-server';
 import { getSupabaseAdmin, isAdminRequest, orderFromRow } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
@@ -111,7 +111,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     const uuid = String(data?.entity?.uuid || '').trim();
     if (!uuid) {
-      const message = data?.requests?.[0]?.errors?.[0]?.message || 'СДЭК не вернул UUID созданного отправления';
+      const message = getCdekErrorMessage(data, 'СДЭК не вернул UUID созданного отправления');
       throw new Error(message);
     }
 

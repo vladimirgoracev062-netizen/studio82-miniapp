@@ -29,7 +29,7 @@ export function getCdekConfig() {
     senderAddress: (process.env.CDEK_SENDER_ADDRESS || 'Москва, улица Пришвина 26').trim(),
     senderName: (process.env.CDEK_SENDER_NAME || 'STUDIO 82').trim(),
     senderPhone: (process.env.CDEK_SENDER_PHONE || '').trim(),
-    shipmentPointCode: (process.env.CDEK_SHIPMENT_POINT_CODE || 'MSK1305').trim().toUpperCase(),
+    shipmentPointCode: (process.env.CDEK_SHIPMENT_POINT_CODE || 'MSK1305').trim(),
   };
 }
 
@@ -74,6 +74,41 @@ async function getCdekToken() {
   return tokenCache.token;
 }
 
+function collectCdekErrors(data: any) {
+  const parts: string[] = [];
+
+  if (!data) return parts;
+  if (typeof data === 'string') return [data];
+
+  if (data.message) parts.push(String(data.message));
+  if (data.error_description) parts.push(String(data.error_description));
+  if (data.error) parts.push(String(data.error));
+
+  const topErrors = Array.isArray(data.errors) ? data.errors : [];
+  topErrors.forEach((item: any) => {
+    const code = item?.code ? `${item.code}: ` : '';
+    const message = item?.message || item?.description || item?.text;
+    if (message) parts.push(`${code}${message}`);
+  });
+
+  const requests = Array.isArray(data.requests) ? data.requests : [];
+  requests.forEach((request: any) => {
+    const errors = Array.isArray(request?.errors) ? request.errors : [];
+    errors.forEach((item: any) => {
+      const code = item?.code ? `${item.code}: ` : '';
+      const message = item?.message || item?.description || item?.text;
+      if (message) parts.push(`${code}${message}`);
+    });
+  });
+
+  return Array.from(new Set(parts.filter(Boolean)));
+}
+
+export function getCdekErrorMessage(data: any, fallback = 'Ошибка СДЭК API') {
+  const errors = collectCdekErrors(data);
+  return errors.length ? errors.join(' | ') : fallback;
+}
+
 export async function cdekRequest(path: string, init: RequestInit = {}) {
   const config = getCdekConfig();
   const token = await getCdekToken();
@@ -90,8 +125,8 @@ export async function cdekRequest(path: string, init: RequestInit = {}) {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     console.error('[cdek] request error', { path, status: response.status, data });
-    const message = data?.errors?.[0]?.message || data?.message || data?.error_description || 'Ошибка СДЭК API';
-    throw new Error(message);
+    const message = getCdekErrorMessage(data, 'Ошибка СДЭК API');
+    throw new Error(`СДЭК API ${response.status}: ${message}`);
   }
 
   return data;

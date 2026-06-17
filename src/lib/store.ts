@@ -234,7 +234,8 @@ export async function createCdekShipmentInDb(orderId: string, adminPassword: str
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || 'Не удалось создать отправление СДЭК');
+    const details = [data.error, data.hint].filter(Boolean).join(' | ');
+    throw new Error(details || 'Не удалось создать отправление СДЭК');
   }
   const data = await response.json();
   return data.order as Order;
