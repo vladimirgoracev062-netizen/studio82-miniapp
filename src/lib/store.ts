@@ -344,14 +344,41 @@ export async function requestTelegramContact(): Promise<{ ok: boolean; status?: 
   });
 }
 
+function cdekCityCacheKey(query: string) {
+  return `studio82_cdek_city_${query.trim().toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/gi, '_').slice(0, 80)}`;
+}
+
 export async function searchCdekCities(query: string) {
-  const response = await fetch(`/api/cdek/cities?q=${encodeURIComponent(query)}`, { cache: 'no-store' });
+  const cleanQuery = query.trim();
+  if (cleanQuery.length < 2) return [];
+
+  const key = cdekCityCacheKey(cleanQuery);
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = window.sessionStorage.getItem(key);
+      if (cached) return JSON.parse(cached);
+    } catch {
+      // Если sessionStorage недоступен, просто идём в API.
+    }
+  }
+
+  const response = await fetch(`/api/cdek/cities?q=${encodeURIComponent(cleanQuery)}`, { cache: 'no-store' });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error || 'Не удалось найти город СДЭК');
   }
   const data = await response.json();
-  return data.cities || [];
+  const cities = data.cities || [];
+
+  if (typeof window !== 'undefined') {
+    try {
+      window.sessionStorage.setItem(key, JSON.stringify(cities));
+    } catch {
+      // Ничего страшного, кеш не критичен.
+    }
+  }
+
+  return cities;
 }
 
 export async function fetchCdekDeliveryPoints(cityCode: number) {

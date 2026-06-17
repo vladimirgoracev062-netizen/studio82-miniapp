@@ -169,7 +169,7 @@ export default function CheckoutPage() {
       } finally {
         if (!cancelled) setCitySearching(false);
       }
-    }, 450);
+    }, 300);
 
     return () => {
       cancelled = true;

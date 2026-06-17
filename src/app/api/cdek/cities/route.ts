@@ -13,12 +13,19 @@ type CityCache = {
   loading?: Promise<City[]>;
 };
 
+type SearchCacheItem = { cities: City[]; loadedAt: number };
+
+const searchCache = new Map<string, SearchCacheItem>();
+
 const cityCache: CityCache = {
   cities: [],
   loadedAt: 0,
 };
 
 const CITY_CACHE_TTL = 12 * 60 * 60 * 1000;
+const SEARCH_CACHE_TTL = 30 * 60 * 1000;
+const CITY_DIRECT_TIMEOUT_MS = 2500;
+const CITY_FULL_FALLBACK_TIMEOUT_MS = 1400;
 
 function normalize(value: string) {
   return value
@@ -150,7 +157,7 @@ async function fetchCitiesByQuery(query: string) {
   const params = new URLSearchParams();
   params.set('city', query);
   params.set('country_codes', 'RU');
-  params.set('size', '50');
+  params.set('size', '100');
   const data = await cdekRequest(`/v2/location/cities?${params.toString()}`);
   return Array.isArray(data) ? data : [];
 }
@@ -212,32 +219,89 @@ function normalizeResults(items: RawCity[], query: string) {
     .map(({ score, ...city }) => city);
 }
 
+function mergeAndSortCities(query: string, ...lists: City[][]) {
+  const merged = new Map<number, City>();
+  lists.flat().forEach((city) => {
+    if (city.code && city.city) merged.set(city.code, city);
+  });
+
+  return Array.from(merged.values())
+    .map((city) => ({ ...city, score: scoreCity(city, query) }))
+    .filter((city) => city.score > 0)
+    .sort((a, b) => b.score - a.score || String(a.city).localeCompare(String(b.city), 'ru'))
+    .slice(0, 30)
+    .map(({ score, ...city }) => city);
+}
+
+function cacheKey(query: string) {
+  return compact(query).slice(0, 80);
+}
+
+function getCachedSearch(query: string) {
+  const key = cacheKey(query);
+  const cached = searchCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.loadedAt > SEARCH_CACHE_TTL) {
+    searchCache.delete(key);
+    return null;
+  }
+  return cached.cities;
+}
+
+function setCachedSearch(query: string, cities: City[]) {
+  searchCache.set(cacheKey(query), { cities, loadedAt: Date.now() });
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function fetchCitiesByQuerySafe(query: string) {
+  return withTimeout(fetchCitiesByQuery(query).catch(() => []), CITY_DIRECT_TIMEOUT_MS, [] as RawCity[]);
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const query = (url.searchParams.get('q') || '').trim();
     if (query.length < 2) return NextResponse.json({ cities: [] });
 
-    const allCities = await fetchAllRussianCities();
-    let cities = normalizeResults(allCities, query);
+    const cached = getCachedSearch(query);
+    if (cached) return NextResponse.json({ cities: cached, query, cached: true });
 
-    // Если полный список по какой-то причине не загрузился или даёт мало результатов,
-    // дополнительно спрашиваем СДЭК по нескольким вариантам написания.
-    if (cities.length < 5) {
-      const variants = queryAliases(query).slice(0, 12);
-      const rawResults = (await Promise.allSettled(variants.map(fetchCitiesByQuery)))
-        .flatMap((result) => result.status === 'fulfilled' ? result.value : []);
-      const fallback = normalizeResults(rawResults, query);
-      const merged = new Map<number, City>();
-      [...cities, ...fallback].forEach((city) => merged.set(city.code, city));
-      cities = Array.from(merged.values())
-        .map((city) => ({ ...city, score: scoreCity(city, query) }))
-        .sort((a, b) => b.score - a.score || String(a.city).localeCompare(String(b.city), 'ru'))
-        .slice(0, 30)
-        .map(({ score, ...city }) => city);
+    // Важно для скорости: сначала спрашиваем СДЭК по конкретному запросу и его частым вариантам
+    // написания. Раньше сначала загружался весь справочник городов РФ, из-за этого первый поиск
+    // мог занимать слишком долго на странице оформления.
+    const variants = uniq(queryAliases(query)).slice(0, 8);
+    const rawResults = (await Promise.allSettled(variants.map(fetchCitiesByQuerySafe)))
+      .flatMap((result) => result.status === 'fulfilled' ? result.value : []);
+
+    let cities = normalizeResults(rawResults, query);
+
+    // Если полный справочник уже загружен в памяти, дополняем результаты локальным fuzzy-поиском.
+    if (cityCache.cities.length) {
+      cities = mergeAndSortCities(query, cities, normalizeResults(cityCache.cities, query));
+    } else {
+      // Стартуем прогрев справочника, но не ждём его долго. Так пользователь быстро получает
+      // ответы от прямого поиска, а следующие запросы в этом же окружении будут ещё быстрее.
+      const fullCities = await withTimeout(fetchAllRussianCities(), cities.length ? 0 : CITY_FULL_FALLBACK_TIMEOUT_MS, [] as City[]);
+      if (fullCities.length) {
+        cities = mergeAndSortCities(query, cities, normalizeResults(fullCities, query));
+      }
     }
 
-    return NextResponse.json({ cities, query });
+    setCachedSearch(query, cities);
+    return NextResponse.json({ cities, query, fast: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Не удалось найти город СДЭК' }, { status: 500 });
   }
