@@ -63,19 +63,23 @@ function buildPayload(order: any) {
       name: order.customer_name || 'Покупатель STUDIO 82',
       phones: [{ number: phone }],
     },
-    // Для тарифов 136/137 магазин сдаёт посылку в конкретный ПВЗ СДЭК.
-    // Поэтому при создании отправления передаём shipment_point, а не только город/адрес отправки.
+    // Магазин сдаёт посылку в конкретный ПВЗ СДЭК.
+    // shipment_point — откуда сдаём, delivery_point или to_location — куда доставляем.
     shipment_point: config.shipmentPointCode,
-    to_location: {
-      code: Number(order.cdek_city_code),
-    },
     packages: buildCdekPackages(order, items),
   };
 
   if (mode === 'pickup') {
+    // Важно: для доставки до ПВЗ/постамата передаём только delivery_point.
+    // Если вместе с delivery_point отправить to_location, СДЭК считает это двумя адресами получателя
+    // и возвращает ошибку v2_delivery_address_multivalued.
     payload.delivery_point = order.cdek_point_code;
   } else {
-    payload.to_location.address = order.cdek_recipient_address;
+    // Для курьерской доставки delivery_point не передаём, нужен конкретный адрес получателя.
+    payload.to_location = {
+      code: Number(order.cdek_city_code),
+      address: order.cdek_recipient_address,
+    };
   }
 
   return payload;

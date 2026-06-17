@@ -422,7 +422,7 @@ export default function AdminPage() {
         </div>
 
         {loading && <p className="muted">Загрузка...</p>}
-        {message && <p className={message.toLowerCase().includes('ош') || message.includes('Не') || message.includes('Невер') ? 'error-text' : 'success-text'}>{message}</p>}
+        {message && <p className={message.toLowerCase().includes('ош') || message.includes('Не') || message.includes('Невер') || message.includes('СДЭК API') ? 'error-text' : 'success-text'}>{message}</p>}
 
         {tab === 'add' && (
           <section className="admin-card">
