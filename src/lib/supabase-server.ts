@@ -33,6 +33,26 @@ function makeSlug(value: string) {
     .slice(0, 60) || 'product';
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function cleanProductModel(modelValue?: string, colorValue?: string, brandValue?: string) {
+  let model = String(modelValue || '').trim().replace(/\s+/g, ' ');
+  const color = String(colorValue || '').trim().replace(/\s+/g, ' ');
+  const brand = String(brandValue || '').trim().replace(/\s+/g, ' ');
+
+  if (brand) {
+    model = model.replace(new RegExp(`^${escapeRegExp(brand)}\\s+`, 'i'), '').trim();
+  }
+
+  if (color) {
+    model = model.replace(new RegExp(`\\s+${escapeRegExp(color)}$`, 'i'), '').trim();
+  }
+
+  return model || String(modelValue || '').trim();
+}
+
 function productFromRow(row: any): Product {
   const images = [...(row.product_images || [])]
     .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
@@ -43,11 +63,13 @@ function productFromRow(row: any): Product {
     .sort((a, b) => Number(String(a.size).replace(',', '.')) - Number(String(b.size).replace(',', '.')))
     .map((item) => ({ size: String(item.size), stock: Number(item.stock || 0) }));
 
+  const cleanModel = cleanProductModel(row.model, row.color, row.brand);
+
   return {
     id: row.id,
     brand: row.brand || '',
-    name: row.model || '',
-    title: [row.model, row.color].filter(Boolean).join(' ').trim() || row.model || '',
+    name: cleanModel,
+    title: cleanModel,
     color: row.color || '',
     description: row.description || '',
     price: Number(row.price || 0),

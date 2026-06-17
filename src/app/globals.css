@@ -83,3 +83,47 @@ html, body {
 .catalog-hero h1 {
   letter-spacing: -0.075em !important;
 }
+
+
+/* Cart checkout button center fix */
+.cart-page .checkout-cta{
+  display:none!important;
+}
+.cart-checkout-bar{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:calc(88px + env(safe-area-inset-bottom));
+  z-index:9998;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:0 22px;
+  pointer-events:none;
+}
+.cart-checkout-button{
+  pointer-events:auto;
+  width:100%;
+  max-width:516px;
+  min-height:64px;
+  border-radius:28px;
+  background:#111;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  font-family:var(--studio-display-font,-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif);
+  font-size:18px;
+  line-height:1;
+  font-weight:900;
+  letter-spacing:-.035em;
+  box-shadow:0 18px 38px rgba(0,0,0,.14);
+}
+.cart-page .studio-simple-page{
+  padding-bottom:calc(230px + env(safe-area-inset-bottom))!important;
+}
+@media(max-width:390px){
+  .cart-checkout-bar{padding:0 18px;bottom:calc(84px + env(safe-area-inset-bottom));}
+  .cart-checkout-button{min-height:60px;font-size:17px;border-radius:26px;}
+}

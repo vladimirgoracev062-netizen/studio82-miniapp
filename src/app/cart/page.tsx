@@ -100,7 +100,11 @@ export default function CartPage() {
           </div>
         )}
       </div>
-      {lines.length > 0 && <Link className="cta checkout-cta" href="/checkout">Оформить заказ</Link>}
+      {lines.length > 0 && (
+        <div className="cart-checkout-bar">
+          <Link className="cart-checkout-button" href="/checkout">Оформить заказ</Link>
+        </div>
+      )}
     </main>
   );
 }
