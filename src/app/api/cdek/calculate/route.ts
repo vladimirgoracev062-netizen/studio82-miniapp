@@ -39,12 +39,12 @@ export async function POST(request: Request) {
     });
 
     const baseDeliverySum = Math.round(Number(data.delivery_sum || data.total_sum || 0));
-    const deliveryMarkup = Math.max(0, Math.round(Number(config.deliveryMarkupPerPair || 0) * cdekPackage.pairCount));
+    const deliveryMarkup = 0;
 
     return NextResponse.json({
       result: {
-        // deliverySum — финальная цена для покупателя. По умолчанию равна цене СДЭК API.
-        deliverySum: baseDeliverySum + deliveryMarkup,
+        // deliverySum — финальная цена для покупателя. Она равна цене, которую вернул СДЭК API.
+        deliverySum: baseDeliverySum,
         deliveryBaseSum: baseDeliverySum,
         deliveryMarkup,
         deliveryMarkupPerPair: Number(config.deliveryMarkupPerPair || 0),

@@ -47,7 +47,6 @@ export default function ProfilePage() {
               )}
               {order.cdekDeliveryPrice ? <p className="muted">Доставка СДЭК: {formatPrice(order.cdekDeliveryPrice)}</p> : null}
               {order.cdekStatus ? <p className="muted">Статус СДЭК: {order.cdekStatusDescription || order.cdekStatus}</p> : null}
-              {order.cdekPackageHeight ? <p className="muted">Упаковка: {order.cdekPackageType ? `${order.cdekPackageType} · ` : ''}{order.cdekPackageLength}×{order.cdekPackageWidth}×{order.cdekPackageHeight} см · {order.cdekPackageWeight} г</p> : null}
               <b>{formatPrice(order.total)}</b>
               {order.trackNumber && <p>Трек СДЭК: <b>{order.trackNumber}</b></p>}
               {order.trackNumber && <a className="btn light" href={`https://www.cdek.ru/ru/tracking?order_id=${order.trackNumber}`} target="_blank">Отследить</a>}

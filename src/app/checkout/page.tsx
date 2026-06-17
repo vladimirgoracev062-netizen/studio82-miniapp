@@ -395,7 +395,6 @@ export default function CheckoutPage() {
               <p key={`${item.title}-${item.size}`}>{item.title}, размер {item.size} × {item.quantity}</p>
             ))}
             {success.order.cdekDeliveryPrice ? <p className="muted">Доставка СДЭК: {formatPrice(success.order.cdekDeliveryPrice)}</p> : null}
-            {success.order.cdekPackageHeight ? <p className="muted">Габариты: {success.order.cdekPackageLength}×{success.order.cdekPackageWidth}×{success.order.cdekPackageHeight} см · {success.order.cdekPackageWeight} г</p> : null}
           </div>
 
           {success.order.deliveryType === 'moscow' ? (
@@ -433,7 +432,6 @@ export default function CheckoutPage() {
           <div className="row-between"><span>Товары</span><b>{formatPrice(goodsTotal)}</b></div>
           {deliveryType === 'cdek' && cdekResult?.deliverySum ? <div className="row-between"><span>Доставка СДЭК</span><b>{formatPrice(cdekResult.deliverySum)}</b></div> : null}
           <div className="row-between checkout-total"><span>Итого</span><b>{formatPrice(total)}</b></div>
-          {deliveryType === 'cdek' && <p className="muted cdek-package-note">Расчёт СДЭК: {totalPairs} {totalPairs === 1 ? 'пара' : totalPairs < 5 ? 'пары' : 'пар'} обуви. Отправка: Москва, ул. Пришвина, 26. Цена доставки берётся напрямую из СДЭК API без ручной наценки.</p>}
         </div>
 
         <div className="delivery-options">
@@ -513,9 +511,7 @@ export default function CheckoutPage() {
             {cdekResult && (
               <div className="cdek-result">
                 <div className="row-between"><span>Доставка</span><b>{formatPrice(cdekResult.deliverySum)}</b></div>
-                {cdekResult.deliveryBaseSum ? <p className="muted">Цена от СДЭК API: {formatPrice(cdekResult.deliveryBaseSum)}{cdekResult.deliveryMarkup ? ` + ${formatPrice(cdekResult.deliveryMarkup)}` : ''}</p> : null}
                 {deliveryPeriod(cdekResult) && <p className="muted">Срок: {deliveryPeriod(cdekResult)}</p>}
-                {packageText(cdekResult) && <p className="muted">Габариты расчёта: {packageText(cdekResult)}</p>}
               </div>
             )}
             {cdekMessage && <p className={cdekResult ? 'success-text' : 'error-text'}>{cdekMessage}</p>}
