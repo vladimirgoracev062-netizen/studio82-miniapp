@@ -171,3 +171,16 @@ html, body {
   line-height:1.35;
 }
 .legal-footer-links{display:flex;flex-wrap:wrap;gap:10px 14px;margin-bottom:8px}.legal-footer a{font-weight:800;color:#111}.legal-footer p{margin:0}.legal-page{font-size:14px;line-height:1.5}.legal-page section{background:rgba(255,255,255,.72);border:1px solid rgba(0,0,0,.05);border-radius:24px;padding:16px;margin:12px 0}.legal-page h2{font-size:18px;margin:0 0 8px;letter-spacing:-.035em}.legal-page p{margin:8px 0}.payment-box .muted{line-height:1.4}
+
+/* Production polish stage 2: delivery tracking block */
+.delivery-track-card{
+  margin:12px 0;
+  padding:12px;
+  border:1px solid rgba(0,0,0,.08);
+  background:rgba(255,255,255,.72);
+  border-radius:20px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.delivery-track-card p{margin:0;line-height:1.35}.delivery-track-card .btn{width:100%;min-height:46px}.order-card .btn.light{margin-top:6px}

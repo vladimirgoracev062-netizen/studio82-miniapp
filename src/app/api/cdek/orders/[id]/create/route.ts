@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cdekRequest, getCdekConfig, getCdekErrorMessage, getCdekOrderInfo, getCdekPackageForPairs, normalizeCdekPhone } from '@/lib/cdek-server';
+import { cdekRequest, getCdekConfig, getCdekErrorMessage, getCdekOrderInfo, getCdekPackageForPairs, getOrderStatusFromCdekStatus, normalizeCdekPhone } from '@/lib/cdek-server';
 import { getSupabaseAdmin, isAdminRequest, orderFromRow } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
@@ -141,6 +141,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         cdek_status: info.status.code || order.cdek_status || 'CREATED',
         cdek_status_description: info.status.description || order.cdek_status_description || 'Отправление создано, ожидает передачи в СДЭК',
         cdek_status_updated_at: new Date().toISOString(),
+        order_status: getOrderStatusFromCdekStatus(info.status.code, info.status.description),
       };
       await supabase.from('orders').update(patch).eq('id', params.id);
       const { data: updated } = await supabase.from('orders').select('*, order_items(*)').eq('id', params.id).single();
@@ -178,7 +179,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       cdek_status: statusCode,
       cdek_status_description: statusDescription,
       cdek_status_updated_at: new Date().toISOString(),
-      order_status: 'Отправление создано',
+      order_status: getOrderStatusFromCdekStatus(statusCode, statusDescription),
     };
 
     const update = await supabase.from('orders').update(patch).eq('id', params.id);

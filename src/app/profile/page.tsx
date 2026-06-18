@@ -62,6 +62,15 @@ function reservationLeftText(order: Order, now: number) {
   return `Бронь действует ещё ${min}:${String(sec).padStart(2, '0')}`;
 }
 
+
+function cdekTrackingUrl(trackNumber: string) {
+  return `https://www.cdek.ru/ru/tracking/?order_id=${encodeURIComponent(trackNumber)}`;
+}
+
+function isCdekOrder(order: Order) {
+  return order.deliveryType !== 'moscow';
+}
+
 function canPayOrder(order: Order, now: number) {
   if (!order.dbId) return false;
   if (order.paymentStatus === 'paid' || order.paymentStatus === 'canceled' || order.paymentStatus === 'expired') return false;
@@ -102,6 +111,23 @@ function canPayOrder(order: Order, now: number) {
       setActionMessage(updated.paymentStatus === 'paid' ? 'Оплата подтверждена.' : 'Платёж пока не завершён.');
     } catch (err: any) {
       setActionMessage(err.message || 'Не удалось проверить оплату');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+
+
+  async function refreshCdekForCustomer(order: Order) {
+    if (!order.dbId) return;
+    try {
+      setActionMessage('');
+      setSavingId(`cdek-${order.dbId}`);
+      const updated = await refreshCdekOrderStatus(order.dbId);
+      setOrders((current) => current.map((item) => (item.dbId === updated.dbId ? updated : item)));
+      setActionMessage('Статус доставки обновлён.');
+    } catch (err: any) {
+      setActionMessage(err.message || 'Не удалось обновить статус доставки');
     } finally {
       setSavingId(null);
     }
@@ -166,7 +192,7 @@ function canPayOrder(order: Order, now: number) {
               {order.items.map((item) => (
                 <p className="muted" key={item.title + item.size}>{item.title}, размер {item.size} × {item.quantity}</p>
               ))}
-              {order.deliveryType !== 'moscow' && (
+              {isCdekOrder(order) && (
                 <p className="muted">
                   {order.cdekDeliveryMode === 'courier' ? 'СДЭК курьером' : 'СДЭК ПВЗ/постамат'} · {order.city}
                   {order.cdekPoint ? ` · ${order.cdekPoint}` : ''}
@@ -175,7 +201,23 @@ function canPayOrder(order: Order, now: number) {
               {order.cdekDeliveryPrice ? <p className="muted">Доставка СДЭК: {formatPrice(order.cdekDeliveryPrice)}</p> : null}
               <p className={order.paymentStatus === 'paid' ? 'success-text' : order.paymentStatus === 'expired' || order.paymentStatus === 'canceled' ? 'error-text' : 'muted'}>Оплата: {paymentLabel(order.paymentStatus)}</p>
               {reservationLeftText(order, now) ? <p className={reservationLeftText(order, now).includes('истекло') ? 'error-text' : 'muted'}>{reservationLeftText(order, now)}</p> : null}
-              {order.cdekStatus ? <p className="muted">Статус СДЭК: {order.cdekStatusDescription || order.cdekStatus}</p> : null}
+              {isCdekOrder(order) && order.cdekOrderUuid ? (
+                <div className="delivery-track-card">
+                  <b>Доставка СДЭК</b>
+                  <p className="muted">Статус: {order.cdekStatusDescription || order.cdekStatus || order.status || 'Отправление создано'}</p>
+                  {order.trackNumber ? (
+                    <>
+                      <p>Трек СДЭК: <b>{order.trackNumber}</b></p>
+                      <a className="btn light" href={cdekTrackingUrl(order.trackNumber)} target="_blank" rel="noreferrer">Отследить заказ</a>
+                    </>
+                  ) : (
+                    <p className="muted">Трек-номер появится после обработки отправления в СДЭК.</p>
+                  )}
+                  <button className="btn light" disabled={savingId === `cdek-${order.dbId}`} onClick={() => refreshCdekForCustomer(order)}>
+                    {savingId === `cdek-${order.dbId}` ? 'Обновляем...' : 'Обновить статус доставки'}
+                  </button>
+                </div>
+              ) : null}
               <b>{formatPrice(order.total)}</b>
               {canPayOrder(order, now) && (
                 <div className="row">
@@ -186,8 +228,6 @@ function canPayOrder(order: Order, now: number) {
               {order.deliveryType === 'moscow' && order.paymentStatus === 'paid' && (
                 <button className="btn light" onClick={() => contactMoscowManager(order)}>Написать менеджеру по доставке</button>
               )}
-              {order.trackNumber && <p>Трек СДЭК: <b>{order.trackNumber}</b></p>}
-              {order.trackNumber && <a className="btn light" href={`https://www.cdek.ru/ru/tracking?order_id=${order.trackNumber}`} target="_blank">Отследить</a>}
             </div>
           ))}
         </div>

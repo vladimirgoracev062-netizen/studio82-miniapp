@@ -234,6 +234,58 @@ export function getLatestCdekStatus(entity: any) {
   };
 }
 
+
+
+export function getOrderStatusFromCdekStatus(statusCode?: string, statusDescription?: string) {
+  const value = `${statusCode || ''} ${statusDescription || ''}`.toUpperCase();
+
+  if (!value.trim()) return 'Отправление создано';
+
+  if (
+    value.includes('DELIVERED') ||
+    value.includes('RECEIVED_BY_RECIPIENT') ||
+    value.includes('ВРУЧ') ||
+    value.includes('ВЫДАН')
+  ) {
+    return 'Завершён';
+  }
+
+  if (
+    value.includes('READY_FOR_RECIPIENT') ||
+    value.includes('READY_FOR_PICKUP') ||
+    value.includes('WAITING_FOR_RECIPIENT') ||
+    value.includes('ГОТОВ') ||
+    value.includes('ОЖИДАЕТ ПОЛУЧАТЕЛЯ')
+  ) {
+    return 'Готов к выдаче';
+  }
+
+  if (
+    value.includes('IN_TRANSIT') ||
+    value.includes('SENT') ||
+    value.includes('DEPARTED') ||
+    value.includes('ARRIVED') ||
+    value.includes('TRANSIT') ||
+    value.includes('В ПУТИ') ||
+    value.includes('ТРАНЗИТ') ||
+    value.includes('ПРИБЫЛ')
+  ) {
+    return 'В пути';
+  }
+
+  if (
+    value.includes('ACCEPTED') ||
+    value.includes('RECEIVED_AT_SHIPMENT_WAREHOUSE') ||
+    value.includes('ACCEPTED_AT_PICKUP_POINT') ||
+    value.includes('ПРИНЯТ') ||
+    value.includes('ПРИНЯТО')
+  ) {
+    return 'Принят СДЭК';
+  }
+
+  return 'Отправление создано';
+}
+
 export async function getCdekOrderInfo(uuid: string) {
   if (!uuid) throw new Error('Не найден UUID заказа СДЭК');
   const data = await cdekRequest(`/v2/orders/${encodeURIComponent(uuid)}`);
@@ -243,7 +295,7 @@ export async function getCdekOrderInfo(uuid: string) {
     raw: data,
     entity,
     uuid: entity?.uuid || uuid,
-    cdekNumber: String(entity?.cdek_number || entity?.number || entity?.im_number || '').trim(),
+    cdekNumber: String(entity?.cdek_number || entity?.im_number || '').trim(),
     status,
   };
 }

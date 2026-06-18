@@ -16,7 +16,7 @@ import {
 } from '@/lib/store';
 import type { Order, OrderStatus, Product, ProductSize } from '@/types';
 
-const statuses: OrderStatus[] = ['Ожидает оплаты', 'Оплачен', 'Собирается', 'Отправление создано', 'В пути', 'Готов к выдаче', 'Завершён', 'Оплата истекла', 'Оплата отменена'];
+const statuses: OrderStatus[] = ['Ожидает оплаты', 'Оплачен', 'Собирается', 'Отправление создано', 'Принят СДЭК', 'В пути', 'Готов к выдаче', 'Завершён', 'Оплата истекла', 'Оплата отменена'];
 type AdminTab = 'products' | 'add' | 'orders';
 type ProductFormDraft = {
   brand: string;
@@ -551,13 +551,14 @@ export default function AdminPage() {
                   {order.cdekDeliveryPrice ? <p className="muted">Стоимость СДЭК: {formatPrice(order.cdekDeliveryPrice)}{order.cdekTariffCode ? ` · тариф ${order.cdekTariffCode}` : ''}</p> : null}
                   {order.cdekPackageHeight ? <p className="muted">Упаковка СДЭК: {order.cdekPackageType ? `${order.cdekPackageType} · ` : ''}{order.cdekPackageLength}×{order.cdekPackageWidth}×{order.cdekPackageHeight} см · {order.cdekPackageWeight} г</p> : null}
                   {order.cdekOrderUuid ? <p className="muted">UUID СДЭК: {order.cdekOrderUuid}</p> : null}
-                  {order.trackNumber ? <p><b>Трек СДЭК: {order.trackNumber}</b></p> : null}
+                  {order.trackNumber ? <p><b>Трек СДЭК: {order.trackNumber}</b></p> : order.cdekOrderUuid ? <p className="muted">Трек-номер появится после обновления статуса СДЭК.</p> : null}
+                  {order.trackNumber ? <a className="btn light" href={`https://www.cdek.ru/ru/tracking/?order_id=${encodeURIComponent(order.trackNumber)}`} target="_blank" rel="noreferrer">Открыть отслеживание СДЭК</a> : null}
                   {order.cdekStatus ? <p className="muted">Статус СДЭК: {order.cdekStatusDescription || order.cdekStatus}</p> : null}
                   {order.telegramUsername && <p className="muted">Telegram: @{order.telegramUsername}</p>}
                   {order.items.map((item) => <p key={item.title + item.size}>{item.title}, размер {item.size} × {item.quantity}</p>)}
                   <select className="input" value={order.status} onChange={(e) => updateOrder(order, { status: e.target.value as OrderStatus })}>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
                   <input className="input" placeholder="Трек-номер СДЭК" value={order.trackNumber || ''} onChange={(e) => updateOrder(order, { trackNumber: e.target.value })} />
-                  {order.deliveryType === 'cdek' && (
+                  {order.deliveryType !== 'moscow' && (
                     <div className="row">
                       <button className="btn light" disabled={savingId === `cdek-create-${order.dbId}`} onClick={() => createCdekShipment(order)}>
                         {order.cdekOrderUuid ? 'Отправление создано' : 'Создать отправление СДЭК'}

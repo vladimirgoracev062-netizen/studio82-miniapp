@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCdekOrderInfo } from '@/lib/cdek-server';
+import { getCdekOrderInfo, getOrderStatusFromCdekStatus } from '@/lib/cdek-server';
 import { getSupabaseAdmin, isAdminRequest, orderFromRow } from '@/lib/supabase-server';
 import { getTelegramInitDataFromRequest, verifyTelegramInitData } from '@/lib/telegram-server';
 
@@ -27,6 +27,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       cdek_status: info.status.code || order.cdek_status || '',
       cdek_status_description: info.status.description || order.cdek_status_description || '',
       cdek_status_updated_at: new Date().toISOString(),
+      order_status: getOrderStatusFromCdekStatus(info.status.code, info.status.description),
     };
 
     const update = await supabase.from('orders').update(patch).eq('id', params.id);
