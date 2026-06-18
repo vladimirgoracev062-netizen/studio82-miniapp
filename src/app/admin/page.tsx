@@ -16,7 +16,7 @@ import {
 } from '@/lib/store';
 import type { Order, OrderStatus, Product, ProductSize } from '@/types';
 
-const statuses: OrderStatus[] = ['Ожидает оплаты', 'Оплачен', 'Собирается', 'Отправление создано', 'Принят СДЭК', 'В пути', 'Готов к выдаче', 'Завершён', 'Оплата истекла', 'Оплата отменена'];
+const statuses: OrderStatus[] = ['Ожидает оплаты', 'Оплачен', 'На сборке', 'Собирается', 'Отправление создано', 'Принят СДЭК', 'В пути', 'Готов к выдаче', 'Завершён', 'Оплата истекла', 'Оплата отменена'];
 type AdminTab = 'products' | 'add' | 'orders';
 type ProductFormDraft = {
   brand: string;

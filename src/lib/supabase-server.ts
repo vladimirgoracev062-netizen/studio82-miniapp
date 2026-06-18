@@ -219,6 +219,7 @@ export function orderFromRow(row: any): Order {
     cdekOrderUuid: row.cdek_order_uuid || '',
     cdekStatus: row.cdek_status || '',
     cdekStatusDescription: row.cdek_status_description || '',
+    cdekStatusUpdatedAt: row.cdek_status_updated_at || '',
     total: Number(row.total_amount || 0),
     status: (row.order_status || 'Новый') as OrderStatus,
     paymentStatus: row.payment_status || 'pending',

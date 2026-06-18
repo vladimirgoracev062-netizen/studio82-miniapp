@@ -30,6 +30,8 @@ export default function Home() {
   const [query, setQuery] = useState('');
   const [brand, setBrand] = useState('Все');
   const [onlyAvailable, setOnlyAvailable] = useState(false);
+  const [pageSize, setPageSize] = useState(12);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     fetchProducts().then((items) => setProducts(items.filter((p) => p.isPublished))).catch(() => setProducts([]));
@@ -41,6 +43,10 @@ export default function Home() {
 
   const brands = useMemo(() => ['Все', ...Array.from(new Set(products.map((p) => p.brand).filter(Boolean)))], [products]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [query, brand, onlyAvailable, pageSize]);
+
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return products.filter((product) => {
@@ -51,6 +57,13 @@ export default function Home() {
       return matchQuery && matchBrand && matchAvailable;
     });
   }, [products, query, brand, onlyAvailable]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleProducts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   return (
     <main className="app client-app">
@@ -77,11 +90,17 @@ export default function Home() {
           <input type="checkbox" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} />
           <span>Только доступные размеры</span>
         </label>
+        <div className="catalog-pagination-row">
+          <span className="muted">Показывать:</span>
+          {[12, 24, 50, 100].map((value) => (
+            <button key={value} className={`chip ${pageSize === value ? 'active' : ''}`} onClick={() => setPageSize(value)}>{value}</button>
+          ))}
+        </div>
       </section>
 
       <section className="product-grid">
         {filtered.length === 0 && <div className="empty wide">Ничего не найдено</div>}
-        {filtered.map((product) => (
+        {visibleProducts.map((product) => (
           <Link href={`/product/${product.id}`} className="product-card" key={product.id}>
             <div className="product-card-photo square-media"><img src={safeImage(product)} alt={product.title} /></div>
             <div className="product-card-body">
@@ -96,6 +115,14 @@ export default function Home() {
           </Link>
         ))}
       </section>
+
+      {filtered.length > pageSize && (
+        <div className="pagination-controls">
+          <button className="btn light" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Назад</button>
+          <span className="muted">Страница {currentPage} из {totalPages}</span>
+          <button className="btn light" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Дальше</button>
+        </div>
+      )}
 
     </main>
   );

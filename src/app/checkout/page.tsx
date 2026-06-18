@@ -93,6 +93,19 @@ function packageText(result?: CdekCalculationResult | null) {
   return `${box.pairCount} ${box.pairCount === 1 ? 'пара' : box.pairCount < 5 ? 'пары' : 'пар'} · ${box.length}×${box.width}×${box.height} см · ${box.weight} г`;
 }
 
+function buildCourierAddress(form: { courierStreet: string; courierHouse: string; courierApartment: string; courierComment: string }) {
+  const street = form.courierStreet.trim();
+  const house = form.courierHouse.trim();
+  const apartment = form.courierApartment.trim();
+  const comment = form.courierComment.trim();
+  const base = [street, house ? `д. ${house}` : '', apartment ? `кв./офис ${apartment}` : ''].filter(Boolean).join(', ');
+  return [base, comment ? `Комментарий: ${comment}` : ''].filter(Boolean).join('. ');
+}
+
+function isCourierAddressReady(form: { courierStreet: string; courierHouse: string }) {
+  return form.courierStreet.trim().length >= 3 && form.courierHouse.trim().length >= 1;
+}
+
 
 function reservationText(order?: Order | null, now = Date.now()) {
   if (!order?.reservationExpiresAt || order.paymentStatus === 'paid') return '';
@@ -132,7 +145,7 @@ function productOrderTitle(product?: Product) {
 }
 
 export default function CheckoutPage() {
-  const [form, setForm] = useState({ customerName: '', phone: '', city: '', cdekPoint: '', courierAddress: '' });
+  const [form, setForm] = useState({ customerName: '', phone: '', city: '', cdekPoint: '', courierStreet: '', courierHouse: '', courierApartment: '', courierComment: '' });
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('cdek');
   const [cdekMode, setCdekMode] = useState<CdekDeliveryMode>('pickup');
   const [selectedCity, setSelectedCity] = useState<CdekCity | null>(null);
@@ -248,7 +261,7 @@ export default function CheckoutPage() {
     setSelectedPoint(null);
     setPointFilter('pvz');
     setPointQuery('');
-    setForm((current) => ({ ...current, cdekPoint: '', courierAddress: '' }));
+    setForm((current) => ({ ...current, cdekPoint: '', courierStreet: '', courierHouse: '', courierApartment: '', courierComment: '' }));
     resetCdekCalculation();
   }
 
@@ -306,13 +319,13 @@ export default function CheckoutPage() {
       setError('');
       if (!selectedCity) throw new Error('Сначала выберите город из списка СДЭК');
       if (cdekMode === 'pickup' && !selectedPoint) throw new Error('Выберите пункт выдачи СДЭК');
-      if (cdekMode === 'courier' && form.courierAddress.trim().length < 5) throw new Error('Укажите адрес курьерской доставки');
+      if (cdekMode === 'courier' && !isCourierAddressReady(form)) throw new Error('Укажите улицу и дом для курьерской доставки');
 
       setCdekLoading(true);
       const result = await calculateCdekDelivery({
         mode: cdekMode,
         cityCode: selectedCity.code,
-        address: cdekMode === 'courier' ? form.courierAddress : selectedPoint?.address,
+        address: cdekMode === 'courier' ? buildCourierAddress(form) : selectedPoint?.address,
         packageQuantity: totalPairs,
         declaredValue: goodsTotal,
       });
@@ -407,9 +420,10 @@ export default function CheckoutPage() {
           if (!selectedPoint) throw new Error('Выберите пункт выдачи СДЭК');
           orderPoint = selectedPoint.address;
         } else {
-          if (!form.courierAddress.trim()) throw new Error('Укажите адрес курьерской доставки');
-          orderPoint = form.courierAddress;
-          cdekRecipientAddress = form.courierAddress;
+          if (!isCourierAddressReady(form)) throw new Error('Укажите улицу и дом для курьерской доставки');
+          const courierAddress = buildCourierAddress(form);
+          orderPoint = courierAddress;
+          cdekRecipientAddress = courierAddress;
         }
       }
 
@@ -584,10 +598,15 @@ export default function CheckoutPage() {
             )}
 
             {selectedCity && cdekMode === 'courier' && (
-              <input className="input" placeholder="Адрес доставки: улица, дом, квартира" value={form.courierAddress} onChange={(e) => { setForm({ ...form, courierAddress: e.target.value }); resetCdekCalculation(); }} />
+              <div className="courier-address-grid">
+                <input className="input" placeholder="Улица" value={form.courierStreet} onChange={(e) => { setForm({ ...form, courierStreet: e.target.value }); resetCdekCalculation(); }} />
+                <input className="input" placeholder="Дом / корпус / строение" value={form.courierHouse} onChange={(e) => { setForm({ ...form, courierHouse: e.target.value }); resetCdekCalculation(); }} />
+                <input className="input" placeholder="Квартира / офис" value={form.courierApartment} onChange={(e) => { setForm({ ...form, courierApartment: e.target.value }); resetCdekCalculation(); }} />
+                <input className="input" placeholder="Комментарий для курьера" value={form.courierComment} onChange={(e) => { setForm({ ...form, courierComment: e.target.value }); resetCdekCalculation(); }} />
+              </div>
             )}
 
-            <button className="btn full" type="button" disabled={cdekLoading || !selectedCity || (cdekMode === 'pickup' && !selectedPoint) || (cdekMode === 'courier' && form.courierAddress.trim().length < 5)} onClick={calculateCdek}>
+            <button className="btn full" type="button" disabled={cdekLoading || !selectedCity || (cdekMode === 'pickup' && !selectedPoint) || (cdekMode === 'courier' && !isCourierAddressReady(form))} onClick={calculateCdek}>
               {cdekLoading ? 'Считаем...' : 'Рассчитать доставку СДЭК'}
             </button>
 
