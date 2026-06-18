@@ -38,3 +38,12 @@ alter table orders add column if not exists paid_at timestamptz;
 comment on column orders.yookassa_payment_id is 'ID платежа ЮKassa';
 comment on column orders.yookassa_payment_url is 'Ссылка на оплату ЮKassa для незавершённого платежа';
 comment on column orders.paid_at is 'Дата и время успешной оплаты';
+
+-- Reservation / payment lifecycle fields
+alter table orders add column if not exists reservation_expires_at timestamptz;
+alter table orders add column if not exists stock_released_at timestamptz;
+alter table orders add column if not exists admin_payment_notified_at timestamptz;
+
+comment on column orders.reservation_expires_at is 'Время окончания брони товара для неоплаченного заказа';
+comment on column orders.stock_released_at is 'Когда остатки были возвращены в наличие после неоплаты/отмены';
+comment on column orders.admin_payment_notified_at is 'Когда администратору отправлено Telegram-уведомление об успешной оплате';

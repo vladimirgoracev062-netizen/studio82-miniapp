@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { fetchProductsFromDb, isAdminRequest, upsertProduct } from '@/lib/supabase-server';
+import { fetchProductsFromDb, isAdminRequest, upsertProduct, getSupabaseAdmin, hasSupabase } from '@/lib/supabase-server';
+import { releaseExpiredReservations } from '@/lib/order-lifecycle';
 import type { Product } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const admin = url.searchParams.get('admin') === '1';
     if (admin && !isAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (hasSupabase()) await releaseExpiredReservations(getSupabaseAdmin());
     const products = await fetchProductsFromDb({ admin });
     return NextResponse.json({ products });
   } catch (error: any) {

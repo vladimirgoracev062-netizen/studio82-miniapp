@@ -55,7 +55,7 @@ function buildOrderMessage(order: Order) {
     .join('\n\n');
 
   return [
-    'Здравствуйте! Хочу оформить доставку по Москве.',
+    'Здравствуйте! Я оплатил заказ STUDIO 82 и хочу согласовать бесплатную доставку по Москве.',
     '',
     `Заказ №${order.id}`,
     lines,
@@ -66,7 +66,7 @@ function buildOrderMessage(order: Order) {
     `Телефон: ${order.phone}`,
     order.telegramUsername ? `Telegram: @${order.telegramUsername}` : '',
     '',
-    'Подскажите, пожалуйста, как согласовать доставку по Москве?',
+    'Подскажите, пожалуйста, когда удобно согласовать курьера по Москве?',
   ].filter(Boolean).join('\n');
 }
 
@@ -91,6 +91,24 @@ function packageText(result?: CdekCalculationResult | null) {
     return `${box.pairCount} ${box.pairCount === 1 ? 'пара' : box.pairCount < 5 ? 'пары' : 'пар'} · короб ${box.packageType || ''} · ${box.boxSummary}`;
   }
   return `${box.pairCount} ${box.pairCount === 1 ? 'пара' : box.pairCount < 5 ? 'пары' : 'пар'} · ${box.length}×${box.width}×${box.height} см · ${box.weight} г`;
+}
+
+
+function reservationText(order?: Order | null, now = Date.now()) {
+  if (!order?.reservationExpiresAt || order.paymentStatus === 'paid') return '';
+  const leftMs = new Date(order.reservationExpiresAt).getTime() - now;
+  if (leftMs <= 0) return 'Время оплаты истекло. Создайте заказ заново.';
+  const secTotal = Math.ceil(leftMs / 1000);
+  const min = Math.floor(secTotal / 60);
+  const sec = secTotal % 60;
+  return `Бронь товара действует ${min}:${String(sec).padStart(2, '0')}`;
+}
+
+function canStartPayment(order?: Order | null, now = Date.now()) {
+  if (!order?.dbId) return false;
+  if (order.paymentStatus === 'paid' || order.paymentStatus === 'canceled' || order.paymentStatus === 'expired') return false;
+  if (order.reservationExpiresAt && new Date(order.reservationExpiresAt).getTime() <= now) return false;
+  return true;
 }
 
 function cleanText(value?: string) {
@@ -136,6 +154,12 @@ export default function CheckoutPage() {
   const [success, setSuccess] = useState<{ order: Order; directMessage: string; copied: boolean } | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState('');
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     setCart(getCart());
@@ -419,7 +443,7 @@ export default function CheckoutPage() {
 
       const directMessage = deliveryType === 'moscow' ? buildOrderMessage(order) : '';
       setSuccess({ order, directMessage, copied: false });
-      setPaymentMessage('Заказ создан. Теперь его нужно оплатить.');
+      setPaymentMessage('Заказ создан. Товары забронированы на 10 минут — теперь его нужно оплатить.');
     } catch (err: any) {
       setError(err.message || 'Не удалось создать заказ');
     } finally {
@@ -444,10 +468,11 @@ export default function CheckoutPage() {
           {success.order.paymentStatus !== 'paid' && (
             <div className="direct-box payment-box">
               <b>Ожидает оплаты</b>
-              <p className="muted">Оплатите заказ через ЮKassa. После успешной оплаты заказ появится как оплаченный в разделе «Заказы».</p>
+              <p className="muted">Оплатите заказ через ЮKassa. Размеры забронированы на 10 минут.</p>
+              {reservationText(success.order, now) && <p className={reservationText(success.order, now).includes('истекло') ? 'error-text' : 'muted'}>{reservationText(success.order, now)}</p>}
               {paymentMessage && <p className={paymentMessage.toLowerCase().includes('ош') || paymentMessage.includes('Не') ? 'error-text' : 'success-text'}>{paymentMessage}</p>}
-              <button className="btn full" disabled={paymentLoading} onClick={() => startPayment(success.order)}>
-                {paymentLoading ? 'Открываем оплату...' : 'Оплатить через ЮKassa'}
+              <button className="btn full" disabled={paymentLoading || !canStartPayment(success.order, now)} onClick={() => startPayment(success.order)}>
+                {paymentLoading ? 'Открываем оплату...' : canStartPayment(success.order, now) ? 'Оплатить через ЮKassa' : 'Время оплаты истекло'}
               </button>
               <Link className="btn light" href="/profile">Перейти к заказам</Link>
             </div>
@@ -579,7 +604,7 @@ export default function CheckoutPage() {
         {deliveryType === 'moscow' && (
           <div className="direct-box">
             <b>Как будет работать</b>
-            <p className="muted">После создания заказа мы сформируем текст с моделью, размером, количеством и контактами. Его нужно будет отправить менеджеру в Telegram.</p>
+            <p className="muted">Доставка по Москве бесплатная. После оплаты заказа появится кнопка для связи с менеджером @studio82direct, чтобы согласовать удобное время и адрес доставки.</p>
           </div>
         )}
 

@@ -16,7 +16,7 @@ import {
 } from '@/lib/store';
 import type { Order, OrderStatus, Product, ProductSize } from '@/types';
 
-const statuses: OrderStatus[] = ['Новый', 'Оплачен', 'Собирается', 'Отправление создано', 'Передан в СДЭК', 'В пути', 'Готов к выдаче', 'Завершён'];
+const statuses: OrderStatus[] = ['Ожидает оплаты', 'Оплачен', 'Собирается', 'Отправление создано', 'В пути', 'Готов к выдаче', 'Завершён', 'Оплата истекла', 'Оплата отменена'];
 type AdminTab = 'products' | 'add' | 'orders';
 type ProductFormDraft = {
   brand: string;
@@ -544,7 +544,9 @@ export default function AdminPage() {
                   <div className="row-between"><b>Заказ #{order.id}</b><span>{formatPrice(order.total)}</span></div>
                   <p className="muted">{order.customerName} · {order.phone}</p>
                   <p className="muted">{order.deliveryType === 'moscow' ? 'Доставка по Москве' : order.cdekDeliveryMode === 'courier' ? 'СДЭК курьером' : 'СДЭК ПВЗ/постамат'} · {order.city} · {order.cdekPoint || 'адрес не указан'}</p>
-                  <p className={order.paymentStatus === 'paid' ? 'success-text' : 'muted'}>Оплата: {order.paymentStatus === 'paid' ? 'оплачено' : order.paymentStatus === 'canceled' ? 'отменена' : 'ожидает оплаты'}</p>
+                  <p className={order.paymentStatus === 'paid' ? 'success-text' : order.paymentStatus === 'expired' || order.paymentStatus === 'canceled' ? 'error-text' : 'muted'}>Оплата: {order.paymentStatus === 'paid' ? 'оплачено' : order.paymentStatus === 'expired' ? 'время оплаты истекло' : order.paymentStatus === 'canceled' ? 'отменена' : 'ожидает оплаты'}</p>
+                  {order.reservationExpiresAt && order.paymentStatus !== 'paid' ? <p className="muted">Бронь до: {new Date(order.reservationExpiresAt).toLocaleString('ru-RU')}</p> : null}
+                  {order.stockReleasedAt ? <p className="error-text">Остатки возвращены: {new Date(order.stockReleasedAt).toLocaleString('ru-RU')}</p> : null}
                   {order.paidAt ? <p className="muted">Оплачено: {new Date(order.paidAt).toLocaleString('ru-RU')}</p> : null}
                   {order.cdekDeliveryPrice ? <p className="muted">Стоимость СДЭК: {formatPrice(order.cdekDeliveryPrice)}{order.cdekTariffCode ? ` · тариф ${order.cdekTariffCode}` : ''}</p> : null}
                   {order.cdekPackageHeight ? <p className="muted">Упаковка СДЭК: {order.cdekPackageType ? `${order.cdekPackageType} · ` : ''}{order.cdekPackageLength}×{order.cdekPackageWidth}×{order.cdekPackageHeight} см · {order.cdekPackageWeight} г</p> : null}

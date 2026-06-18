@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin, hasSupabase, isAdminRequest, orderFromRow } from '@/lib/supabase-server';
 import type { CartItem } from '@/types';
 import { getTelegramInitDataFromRequest, verifyTelegramInitData } from '@/lib/telegram-server';
+import { releaseExpiredReservations, reservationExpiresAt } from '@/lib/order-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
@@ -122,6 +123,7 @@ export async function GET(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
+    await releaseExpiredReservations(supabase);
     let query = supabase
       .from('orders')
       .select('*, order_items(*)')
@@ -143,6 +145,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const cart = (body.cart || []) as CartItem[];
     const supabase = getSupabaseAdmin();
+    await releaseExpiredReservations(supabase);
     const telegramUser = verifyTelegramInitData(getTelegramInitDataFromRequest(request) || body.telegramInitData || '');
 
     if (!telegramUser?.id) {
@@ -186,8 +189,10 @@ export async function POST(request: Request) {
       delivery_point: body.cdekPoint || '',
       delivery_type: body.deliveryType || 'cdek',
       payment_status: 'pending',
-      order_status: 'Новый',
+      order_status: 'Ожидает оплаты',
       total_amount: total,
+      reservation_expires_at: reservationExpiresAt(),
+      stock_released_at: null,
     };
 
     const cdekOrderPayload = {
@@ -236,8 +241,7 @@ export async function POST(request: Request) {
 
     const { data: fullOrder } = await supabase.from('orders').select('*, order_items(*)').eq('id', order.id).single();
     const normalizedOrder = fullOrder ? orderFromRow(fullOrder) : orderFromRow({ ...order, order_items: orderItems });
-    const notification = await notifyAdminAboutOrder(normalizedOrder, new URL(request.url).origin);
-    return NextResponse.json({ order: normalizedOrder, notification });
+    return NextResponse.json({ order: normalizedOrder, reservationMinutes: 10 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to create order' }, { status: 500 });
   }

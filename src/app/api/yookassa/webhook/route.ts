@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getYookassaConfig, getYookassaPayment, normalizeYookassaStatus, paymentConfirmationUrl } from '@/lib/yookassa-server';
+import { getYookassaConfig, getYookassaPayment, normalizeYookassaStatus } from '@/lib/yookassa-server';
 import { getSupabaseAdmin, hasSupabase } from '@/lib/supabase-server';
+import { applyYookassaPaymentToOrder } from '@/lib/order-lifecycle';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,17 +25,8 @@ export async function POST(request: Request) {
     const { data: order } = await supabase.from('orders').select('id').eq('yookassa_payment_id', paymentId).maybeSingle();
     if (!order?.id) return NextResponse.json({ ok: true, skipped: true });
 
-    const patch: Record<string, any> = {
-      payment_status: status,
-      yookassa_payment_url: paymentConfirmationUrl(payment) || null,
-    };
-    if (status === 'paid') {
-      patch.payment_status = 'paid';
-      patch.order_status = 'Оплачен';
-      patch.paid_at = new Date().toISOString();
-    }
-    await supabase.from('orders').update(patch).eq('id', order.id);
-    return NextResponse.json({ ok: true });
+    await applyYookassaPaymentToOrder(supabase, order.id, payment, new URL(request.url).origin);
+    return NextResponse.json({ ok: true, paymentStatus: status });
   } catch (error: any) {
     console.error('[yookassa webhook] error', error);
     return NextResponse.json({ ok: false, error: error.message || 'Webhook error' }, { status: 200 });

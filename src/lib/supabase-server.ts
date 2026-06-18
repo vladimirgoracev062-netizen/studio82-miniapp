@@ -225,6 +225,8 @@ export function orderFromRow(row: any): Order {
     yookassaPaymentId: row.yookassa_payment_id || '',
     paymentUrl: row.yookassa_payment_url || '',
     paidAt: row.paid_at || '',
+    reservationExpiresAt: row.reservation_expires_at || '',
+    stockReleasedAt: row.stock_released_at || '',
     trackNumber: row.cdek_tracking_number || row.cdek_number || '',
     items: (row.order_items || []).map((item: any) => ({
       title: item.product_title,

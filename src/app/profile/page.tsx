@@ -11,11 +11,12 @@ export default function ProfilePage() {
   const [error, setError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
 
   function buildMoscowMessage(order: Order) {
     const items = order.items.map((item) => `• ${item.title}, размер ${item.size} × ${item.quantity}`).join('\n');
     return [
-      `Здравствуйте! Я оплатил заказ №${order.id}.`,
+      `Здравствуйте! Я оплатил заказ STUDIO 82 №${order.id} и хочу согласовать бесплатную доставку по Москве.`,
       '',
       items,
       '',
@@ -23,7 +24,7 @@ export default function ProfilePage() {
       `Телефон: ${order.phone}`,
       order.telegramUsername ? `Telegram: @${order.telegramUsername}` : '',
       '',
-      'Хочу согласовать доставку по Москве.',
+      'Подскажите, пожалуйста, когда удобно согласовать курьера по Москве?',
     ].filter(Boolean).join('\n');
   }
 
@@ -42,6 +43,32 @@ export default function ProfilePage() {
     if (tg?.openTelegramLink) tg.openTelegramLink(url);
     else window.open(url, '_blank');
   }
+
+function paymentLabel(status?: string) {
+  if (status === 'paid') return 'оплачено';
+  if (status === 'canceled') return 'отменена';
+  if (status === 'expired') return 'время оплаты истекло';
+  return 'ожидает оплаты';
+}
+
+function reservationLeftText(order: Order, now: number) {
+  if (order.paymentStatus === 'paid' || order.paymentStatus === 'canceled' || order.paymentStatus === 'expired') return '';
+  if (!order.reservationExpiresAt) return '';
+  const leftMs = new Date(order.reservationExpiresAt).getTime() - now;
+  if (leftMs <= 0) return 'Время оплаты истекло. Товар вернётся в наличие.';
+  const totalSec = Math.ceil(leftMs / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `Бронь действует ещё ${min}:${String(sec).padStart(2, '0')}`;
+}
+
+function canPayOrder(order: Order, now: number) {
+  if (!order.dbId) return false;
+  if (order.paymentStatus === 'paid' || order.paymentStatus === 'canceled' || order.paymentStatus === 'expired') return false;
+  if (order.reservationExpiresAt && new Date(order.reservationExpiresAt).getTime() <= now) return false;
+  return true;
+}
+
 
   async function payOrder(order: Order) {
     if (!order.dbId) return;
@@ -85,6 +112,11 @@ export default function ProfilePage() {
     setActionMessage(copied ? 'Сообщение скопировано. Откройте чат и вставьте его менеджеру.' : 'Откройте чат и отправьте данные заказа менеджеру.');
     openDirect();
   }
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const telegramUser = getTelegramUser();
@@ -141,10 +173,11 @@ export default function ProfilePage() {
                 </p>
               )}
               {order.cdekDeliveryPrice ? <p className="muted">Доставка СДЭК: {formatPrice(order.cdekDeliveryPrice)}</p> : null}
-              <p className={order.paymentStatus === 'paid' ? 'success-text' : 'muted'}>Оплата: {order.paymentStatus === 'paid' ? 'оплачено' : order.paymentStatus === 'canceled' ? 'отменена' : 'ожидает оплаты'}</p>
+              <p className={order.paymentStatus === 'paid' ? 'success-text' : order.paymentStatus === 'expired' || order.paymentStatus === 'canceled' ? 'error-text' : 'muted'}>Оплата: {paymentLabel(order.paymentStatus)}</p>
+              {reservationLeftText(order, now) ? <p className={reservationLeftText(order, now).includes('истекло') ? 'error-text' : 'muted'}>{reservationLeftText(order, now)}</p> : null}
               {order.cdekStatus ? <p className="muted">Статус СДЭК: {order.cdekStatusDescription || order.cdekStatus}</p> : null}
               <b>{formatPrice(order.total)}</b>
-              {order.paymentStatus !== 'paid' && order.dbId && (
+              {canPayOrder(order, now) && (
                 <div className="row">
                   <button className="btn" disabled={savingId === `pay-${order.dbId}`} onClick={() => payOrder(order)}>{savingId === `pay-${order.dbId}` ? 'Открываем...' : 'Оплатить'}</button>
                   {order.yookassaPaymentId && <button className="btn light" disabled={savingId === `check-${order.dbId}`} onClick={() => refreshPayment(order)}>Проверить оплату</button>}

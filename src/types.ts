@@ -77,13 +77,16 @@ export type CdekCalculationResult = {
 
 export type OrderStatus =
   | 'Новый'
+  | 'Ожидает оплаты'
   | 'Оплачен'
   | 'Собирается'
   | 'Отправление создано'
   | 'Передан в СДЭК'
   | 'В пути'
   | 'Готов к выдаче'
-  | 'Завершён';
+  | 'Завершён'
+  | 'Оплата истекла'
+  | 'Оплата отменена';
 
 export type Order = {
   id: string;
@@ -119,6 +122,8 @@ export type Order = {
   yookassaPaymentId?: string;
   paymentUrl?: string;
   paidAt?: string;
+  reservationExpiresAt?: string;
+  stockReleasedAt?: string;
   trackNumber?: string;
   items: Array<{ title: string; size: string; price: number; quantity: number }>;
 };
