@@ -40,16 +40,27 @@ export function yookassaCredentialsDiagnostics() {
   };
 }
 
-function authHeader() {
+function authHeader(shopIdOverride?: string) {
   const config = getYookassaConfig();
-  if (!config.shopId || !config.secretKey) {
+  const shopId = String(shopIdOverride || config.shopId || '').trim();
+  if (!shopId || !config.secretKey) {
     throw new Error('ЮKassa не настроена: добавьте YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY в Vercel');
   }
-  return `Basic ${Buffer.from(`${config.shopId}:${config.secretKey}`, 'utf8').toString('base64')}`;
+  return `Basic ${Buffer.from(`${shopId}:${config.secretKey}`, 'utf8').toString('base64')}`;
 }
 
 function amountValue(value: number) {
   return Math.max(0, Number(value || 0)).toFixed(2);
+}
+
+function isYookassaAuthTypeError(error: any) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('yookassa api 401') &&
+    (message.includes('authentication type is not allowed') ||
+      message.includes('invalid_credentials') ||
+      message.includes('параметр: authorization'))
+  );
 }
 
 function formatYookassaError(status: number, data: any) {
@@ -60,11 +71,11 @@ function formatYookassaError(status: number, data: any) {
   return `ЮKassa API ${status}: ${description}${code}${parameter}${id}`;
 }
 
-async function yookassaRequest(path: string, init: RequestInit = {}) {
+async function yookassaRequest(path: string, init: RequestInit = {}, options: { authShopId?: string } = {}) {
   const config = getYookassaConfig();
   const method = String(init.method || 'GET').toUpperCase();
   const headers: Record<string, string> = {
-    Authorization: authHeader(),
+    Authorization: authHeader(options.authShopId),
     ...(init.headers as Record<string, string> | undefined),
   };
 
@@ -122,10 +133,38 @@ export async function createYookassaPayment(params: {
     },
   };
 
-  return yookassaRequest('/v3/payments', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
+  try {
+    return await yookassaRequest('/v3/payments', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  } catch (error: any) {
+    // Иногда /v3/me проходит, но создание платежа возвращает
+    // "Authentication type is not allowed", если в YOOKASSA_SHOP_ID
+    // указан идентификатор шлюза/интеграции, а для платежа нужен account_id.
+    // В этом случае безопасно пробуем повторить запрос с account_id,
+    // который сама ЮKassa возвращает по текущим ключам.
+    if (isYookassaAuthTypeError(error)) {
+      try {
+        const me = await getYookassaMe();
+        const accountId = String(me?.account_id || me?.id || '').trim();
+        const config = getYookassaConfig();
+        if (accountId && accountId !== config.shopId) {
+          return await yookassaRequest(
+            '/v3/payments',
+            {
+              method: 'POST',
+              body: JSON.stringify(body),
+            },
+            { authShopId: accountId }
+          );
+        }
+      } catch (fallbackError: any) {
+        throw new Error(`${error.message}. Повтор через account_id тоже не прошёл: ${fallbackError.message || fallbackError}`);
+      }
+    }
+    throw error;
+  }
 }
 
 export async function getYookassaPayment(paymentId: string) {
