@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/cdek-status",
-      "schedule": "0 * * * *"
-    }
-  ]
-}

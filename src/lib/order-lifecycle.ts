@@ -166,7 +166,7 @@ export async function applyYookassaPaymentToOrder(supabase: AnySupabase, orderId
 
   if (status === 'paid') {
     patch.payment_status = 'paid';
-    patch.order_status = 'На сборке';
+    patch.order_status = 'Оплачен';
     patch.paid_at = orderBefore.paid_at || new Date().toISOString();
     patch.yookassa_payment_url = null;
   }

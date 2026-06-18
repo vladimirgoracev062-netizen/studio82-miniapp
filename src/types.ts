@@ -79,7 +79,6 @@ export type OrderStatus =
   | 'Новый'
   | 'Ожидает оплаты'
   | 'Оплачен'
-  | 'На сборке'
   | 'Собирается'
   | 'Отправление создано'
   | 'Принят СДЭК'
@@ -118,7 +117,6 @@ export type Order = {
   cdekOrderUuid?: string;
   cdekStatus?: string;
   cdekStatusDescription?: string;
-  cdekStatusUpdatedAt?: string;
   total: number;
   status: OrderStatus;
   paymentStatus?: string;

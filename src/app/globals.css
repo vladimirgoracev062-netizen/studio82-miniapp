@@ -184,22 +184,3 @@ html, body {
   gap:8px;
 }
 .delivery-track-card p{margin:0;line-height:1.35}.delivery-track-card .btn{width:100%;min-height:46px}.order-card .btn.light{margin-top:6px}
-
-.catalog-pagination-row,
-.pagination-controls,
-.courier-address-grid {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.pagination-controls {
-  justify-content: center;
-  margin: 22px 0 86px;
-}
-
-.courier-address-grid {
-  flex-direction: column;
-  align-items: stretch;
-}
