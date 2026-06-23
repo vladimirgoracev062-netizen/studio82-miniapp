@@ -184,3 +184,25 @@ html, body {
   gap:8px;
 }
 .delivery-track-card p{margin:0;line-height:1.35}.delivery-track-card .btn{width:100%;min-height:46px}.order-card .btn.light{margin-top:6px}
+
+.catalog-page-size,
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.catalog-page-size {
+  margin-top: 8px;
+}
+
+.pagination-row {
+  padding: 18px 0 72px;
+}
+
+.cdek-courier-fields {
+  display: grid;
+  gap: 10px;
+}

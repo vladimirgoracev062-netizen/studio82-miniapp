@@ -16,7 +16,7 @@ import {
 } from '@/lib/store';
 import type { Order, OrderStatus, Product, ProductSize } from '@/types';
 
-const statuses: OrderStatus[] = ['Ожидает оплаты', 'Оплачен', 'Собирается', 'Отправление создано', 'Принят СДЭК', 'В пути', 'Готов к выдаче', 'Завершён', 'Оплата истекла', 'Оплата отменена'];
+const statuses: OrderStatus[] = ['Ожидает оплаты', 'Оплачен', 'На сборке', 'Собирается', 'Отправление создано', 'Принят СДЭК', 'В пути', 'Готов к выдаче', 'Завершён', 'Оплата истекла', 'Оплата отменена'];
 type AdminTab = 'products' | 'add' | 'orders';
 type ProductFormDraft = {
   brand: string;
@@ -560,8 +560,8 @@ export default function AdminPage() {
                   <input className="input" placeholder="Трек-номер СДЭК" value={order.trackNumber || ''} onChange={(e) => updateOrder(order, { trackNumber: e.target.value })} />
                   {order.deliveryType !== 'moscow' && (
                     <div className="row">
-                      <button className="btn light" disabled={savingId === `cdek-create-${order.dbId}`} onClick={() => createCdekShipment(order)}>
-                        {order.cdekOrderUuid ? 'Отправление создано' : 'Создать отправление СДЭК'}
+                      <button className="btn light" disabled={order.paymentStatus !== 'paid' || savingId === `cdek-create-${order.dbId}` || Boolean(order.cdekOrderUuid)} onClick={() => createCdekShipment(order)}>
+                        {order.cdekOrderUuid ? 'Отправление создано' : order.paymentStatus !== 'paid' ? 'СДЭК после оплаты' : 'Создать отправление СДЭК'}
                       </button>
                       <button className="btn light" disabled={!order.cdekOrderUuid || savingId === `cdek-status-${order.dbId}`} onClick={() => refreshCdekStatus(order)}>
                         Обновить статус СДЭК

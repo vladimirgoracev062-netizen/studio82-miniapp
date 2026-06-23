@@ -186,6 +186,10 @@ export async function createOrderInDb(payload: {
   cdekPointCode?: string;
   cdekPointAddress?: string;
   cdekRecipientAddress?: string;
+  cdekRecipientStreet?: string;
+  cdekRecipientHouse?: string;
+  cdekRecipientFlat?: string;
+  cdekRecipientComment?: string;
   cdekDeliveryPrice?: number;
   cdekTariffCode?: number | null;
   cdekPackagePairCount?: number;

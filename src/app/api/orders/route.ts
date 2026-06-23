@@ -195,7 +195,7 @@ export async function POST(request: Request) {
       stock_released_at: null,
     };
 
-    const cdekOrderPayload = {
+    const cdekCorePayload = {
       ...baseOrderPayload,
       cdek_delivery_mode: body.cdekDeliveryMode || null,
       cdek_city_code: body.cdekCityCode || null,
@@ -213,7 +213,20 @@ export async function POST(request: Request) {
       cdek_package_height: body.cdekPackageHeight || null,
     };
 
+    const cdekOrderPayload = {
+      ...cdekCorePayload,
+      cdek_recipient_street: body.cdekRecipientStreet || null,
+      cdek_recipient_house: body.cdekRecipientHouse || null,
+      cdek_recipient_flat: body.cdekRecipientFlat || null,
+      cdek_recipient_comment: body.cdekRecipientComment || null,
+    };
+
     let orderResult = await supabase.from('orders').insert(cdekOrderPayload).select('*').single();
+
+    if (orderResult.error && /cdek_recipient_(street|house|flat|comment)/i.test(orderResult.error.message || '')) {
+      console.warn('[orders] New courier address columns are missing, retrying with legacy cdek_recipient_address. Run sql/02_stage3_light_cdek_autostatus.sql.', orderResult.error.message);
+      orderResult = await supabase.from('orders').insert(cdekCorePayload).select('*').single();
+    }
 
     if (orderResult.error && /cdek_|delivery_price|tariff|package/i.test(orderResult.error.message || '')) {
       console.warn('[orders] CDEK columns are missing, retrying without optional fields. Run SQL migration for full CDEK support.', orderResult.error.message);

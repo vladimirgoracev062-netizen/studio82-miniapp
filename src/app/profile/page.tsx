@@ -201,21 +201,25 @@ function canPayOrder(order: Order, now: number) {
               {order.cdekDeliveryPrice ? <p className="muted">Доставка СДЭК: {formatPrice(order.cdekDeliveryPrice)}</p> : null}
               <p className={order.paymentStatus === 'paid' ? 'success-text' : order.paymentStatus === 'expired' || order.paymentStatus === 'canceled' ? 'error-text' : 'muted'}>Оплата: {paymentLabel(order.paymentStatus)}</p>
               {reservationLeftText(order, now) ? <p className={reservationLeftText(order, now).includes('истекло') ? 'error-text' : 'muted'}>{reservationLeftText(order, now)}</p> : null}
-              {isCdekOrder(order) && order.cdekOrderUuid ? (
+              {isCdekOrder(order) ? (
                 <div className="delivery-track-card">
                   <b>Доставка СДЭК</b>
-                  <p className="muted">Статус: {order.cdekStatusDescription || order.cdekStatus || order.status || 'Отправление создано'}</p>
+                  <p className="muted">Статус: {order.cdekStatusDescription || order.cdekStatus || (order.cdekOrderUuid ? order.status : 'Ожидает создания отправления')}</p>
                   {order.trackNumber ? (
                     <>
                       <p>Трек СДЭК: <b>{order.trackNumber}</b></p>
                       <a className="btn light" href={cdekTrackingUrl(order.trackNumber)} target="_blank" rel="noreferrer">Отследить заказ</a>
                     </>
                   ) : (
-                    <p className="muted">Трек-номер появится после обработки отправления в СДЭК.</p>
+                    <p className="muted">Трек-номер появится после создания и обработки отправления в СДЭК.</p>
                   )}
-                  <button className="btn light" disabled={savingId === `cdek-${order.dbId}`} onClick={() => refreshCdekForCustomer(order)}>
-                    {savingId === `cdek-${order.dbId}` ? 'Обновляем...' : 'Обновить статус доставки'}
-                  </button>
+                  {order.cdekOrderUuid ? (
+                    <button className="btn light" disabled={savingId === `cdek-${order.dbId}`} onClick={() => refreshCdekForCustomer(order)}>
+                      {savingId === `cdek-${order.dbId}` ? 'Обновляем...' : 'Обновить статус доставки'}
+                    </button>
+                  ) : (
+                    <p className="muted">После оплаты администратор создаст отправление, и здесь появятся статусы СДЭК.</p>
+                  )}
                 </div>
               ) : null}
               <b>{formatPrice(order.total)}</b>

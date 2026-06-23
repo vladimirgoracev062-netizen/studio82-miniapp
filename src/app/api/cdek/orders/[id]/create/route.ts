@@ -42,6 +42,24 @@ function buildUnitItems(items: any[]) {
   return unitItems.length ? unitItems : [{ name: 'Кроссовки STUDIO 82', wareKey: 'Кроссовки STUDIO 82', price: 1 }];
 }
 
+function normalizeAddressPart(value?: string) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function buildCourierAddressFromOrder(order: any) {
+  const street = normalizeAddressPart(order.cdek_recipient_street);
+  const house = normalizeAddressPart(order.cdek_recipient_house);
+  const flat = normalizeAddressPart(order.cdek_recipient_flat);
+  const comment = normalizeAddressPart(order.cdek_recipient_comment);
+  const legacy = normalizeAddressPart(order.cdek_recipient_address);
+
+  if (street && house) {
+    return [street, `д. ${house}`, flat ? `кв./офис ${flat}` : '', comment].filter(Boolean).join(', ');
+  }
+
+  return legacy;
+}
+
 function buildCdekPackages(order: any, items: any[]) {
   const pairCount = Number(order.cdek_package_pair_count || getOrderItemPairs(items));
   const cdekPackage = getCdekPackageForPairs(pairCount);
@@ -86,7 +104,8 @@ function buildPayload(order: any) {
   const mode = order.cdek_delivery_mode === 'courier' ? 'courier' : 'pickup';
   const declaredValue = getDeclaredValueForOrder(items);
   if (mode === 'pickup' && !order.cdek_point_code) throw new Error('У заказа не выбран ПВЗ/постамат СДЭК');
-  if (mode === 'courier' && !order.cdek_recipient_address) throw new Error('У заказа нет адреса курьерской доставки');
+  const courierAddress = buildCourierAddressFromOrder(order);
+  if (mode === 'courier' && !courierAddress) throw new Error('У заказа нет адреса курьерской доставки');
 
   const payload: any = {
     type: 1,
@@ -118,7 +137,7 @@ function buildPayload(order: any) {
     // Для курьерской доставки delivery_point не передаём, нужен конкретный адрес получателя.
     payload.to_location = {
       code: Number(order.cdek_city_code),
-      address: order.cdek_recipient_address,
+      address: courierAddress,
     };
   }
 
@@ -133,6 +152,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const { data: order, error } = await supabase.from('orders').select('*, order_items(*)').eq('id', params.id).single();
     if (error) throw error;
     if (!order) return NextResponse.json({ error: 'Заказ не найден' }, { status: 404 });
+
+    if (order.payment_status !== 'paid') {
+      return NextResponse.json({ error: 'Сначала заказ должен быть оплачен. Отправление СДЭК создаётся только после оплаты.' }, { status: 400 });
+    }
 
     if (order.cdek_order_uuid) {
       const info = await getCdekOrderInfo(order.cdek_order_uuid);

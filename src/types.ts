@@ -79,6 +79,7 @@ export type OrderStatus =
   | 'Новый'
   | 'Ожидает оплаты'
   | 'Оплачен'
+  | 'На сборке'
   | 'Собирается'
   | 'Отправление создано'
   | 'Принят СДЭК'
@@ -105,6 +106,10 @@ export type Order = {
   cdekPointCode?: string;
   cdekPointAddress?: string;
   cdekRecipientAddress?: string;
+  cdekRecipientStreet?: string;
+  cdekRecipientHouse?: string;
+  cdekRecipientFlat?: string;
+  cdekRecipientComment?: string;
   cdekDeliveryPrice?: number;
   cdekTariffCode?: number | null;
   cdekPackagePairCount?: number;
